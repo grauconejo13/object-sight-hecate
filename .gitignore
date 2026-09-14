@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Models / generated outputs
+models/
+weights/
+outputs/
+*.pt
+*.onnx
+
+# Media captured during testing
+captures/
+*.mp4
+*.mov
+*.avi
+
+# Logs / caches
+*.log
+.cache/
+.pytest_cache/
