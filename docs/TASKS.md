@@ -39,9 +39,9 @@ Use this file to track milestone progress, validation work, and the next concret
 
 ### Local validation required
 
-- [ ] Pull / switch to `feature/single-camera-perception` locally.
-- [ ] Create and activate the Python virtual environment.
-- [ ] Install dependencies successfully.
+- [x] Pull / switch to `feature/single-camera-perception` locally.
+- [x] Create and activate the Python virtual environment.
+- [ ] Install dependencies successfully. **Blocked: system drive ran out of space while installing PyTorch.**
 - [ ] Verify runtime is using OpenCV 5.x.
 - [ ] Run unit tests locally.
 - [ ] Open the webcam successfully.
@@ -114,4 +114,4 @@ These are intentionally deferred so Milestone 1 stays small and testable.
 
 ## Current next action
 
-Run Milestone 1 locally and capture the first real webcam baseline before adding more perception logic.
+Free enough space on the project laptop for the remaining ML dependencies, then rerun `pip install -r requirements.txt`. Do not move on to camera validation until the environment installs cleanly.
