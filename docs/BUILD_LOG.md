@@ -22,6 +22,8 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Added local run instructions to the README.
 - Pulled and switched the project laptop to `feature/single-camera-perception`.
 - Created and activated a Python 3.11 virtual environment.
+- Freed system-drive space after the first PyTorch installation failed, then completed the dependency setup.
+- Ran the first live webcam session successfully.
 
 **What worked**
 
@@ -30,24 +32,33 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Local repository sync and branch setup completed successfully.
 - Python 3.11.5 virtual environment activated successfully.
 - `pip` upgraded successfully before dependency installation.
+- OpenCV 5.0.0 launched successfully with the webcam at 1280x720.
+- YOLO loaded and produced live detections with track IDs.
+- The first observed frame correctly labeled a person as `ahead (12 o'clock)` and a cell phone on the right as `right (3 o'clock)`.
 
 **Problems / failures**
 
-- Dependency installation stopped while installing the PyTorch dependency with `OSError: [Errno 28] No space left on device`.
-- Because the dependency install did not complete, OpenCV runtime, tests, webcam capture, and model loading have not yet been validated locally.
+- Initial dependency installation stopped while installing PyTorch with `OSError: [Errno 28] No space left on device`.
+- The system drive was cleaned up and the environment was able to proceed afterward.
+- Unit tests have not yet been confirmed locally.
+- Left -> center -> right movement, crossing behavior, track-ID stability, and clean keyboard exit still need explicit validation.
 - No trajectory, distance, relevance scoring, selective alerts, or AWS behavior exists yet.
 
 **Evidence / measurements**
 
 - Local Python version: `3.11.5`.
-- OpenCV 5 and other packages downloaded, but the full environment did not finish installing because the system drive ran out of space.
-- FPS is displayed at runtime for the first local benchmark once installation succeeds.
+- Runtime OpenCV version observed: `5.0.0`.
+- First webcam run resolution: `1280x720`.
+- Initial observed performance: approximately `13.3 FPS`.
+- Live detections visibly included confidence scores, track IDs, and wearer-relative clock-position hints.
 
 **Next step**
 
-- Check available disk space and free enough room for the remaining ML dependencies.
-- Rerun `pip install -r requirements.txt` after cleanup.
-- Only after installation succeeds, run the unit tests and first webcam baseline.
+- Run `python -m unittest discover -s tests -v` and record the result.
+- Exercise the live camera with left -> center -> right movement.
+- Test another person or object crossing the frame.
+- Watch whether track IDs remain stable enough for temporal reasoning.
+- Record obvious failure cases and verify `Q` / `Esc` exit behavior before merging Milestone 1.
 
 ## 2026-09-14 — Repository initialized
 
