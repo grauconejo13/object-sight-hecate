@@ -20,26 +20,34 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Added a runnable window with bounding boxes, track IDs, confidence, OpenCV version, and FPS.
 - Added initial unit tests for spatial position mapping.
 - Added local run instructions to the README.
+- Pulled and switched the project laptop to `feature/single-camera-perception`.
+- Created and activated a Python 3.11 virtual environment.
 
 **What worked**
 
 - Repository now has a complete code path from frame source -> detection/tracking -> spatial observation -> visual overlay.
 - OpenCV 5 is explicitly required at runtime so an accidental OpenCV 4 environment fails clearly.
+- Local repository sync and branch setup completed successfully.
+- Python 3.11.5 virtual environment activated successfully.
+- `pip` upgraded successfully before dependency installation.
 
 **Problems / failures**
 
-- Camera behavior and model runtime have not yet been exercised on the project laptop; the GitHub-side build cannot access the user's webcam.
+- Dependency installation stopped while installing the PyTorch dependency with `OSError: [Errno 28] No space left on device`.
+- Because the dependency install did not complete, OpenCV runtime, tests, webcam capture, and model loading have not yet been validated locally.
 - No trajectory, distance, relevance scoring, selective alerts, or AWS behavior exists yet.
 
 **Evidence / measurements**
 
-- FPS is displayed at runtime for the first local benchmark.
-- Spatial utility tests are included, but local execution is still required.
+- Local Python version: `3.11.5`.
+- OpenCV 5 and other packages downloaded, but the full environment did not finish installing because the system drive ran out of space.
+- FPS is displayed at runtime for the first local benchmark once installation succeeds.
 
 **Next step**
 
-- Run the branch locally with a webcam and record baseline FPS, detection stability, and obvious failure cases.
-- Fix any environment/runtime issues before adding temporal trajectory state.
+- Check available disk space and free enough room for the remaining ML dependencies.
+- Rerun `pip install -r requirements.txt` after cleanup.
+- Only after installation succeeds, run the unit tests and first webcam baseline.
 
 ## 2026-09-14 — Repository initialized
 
