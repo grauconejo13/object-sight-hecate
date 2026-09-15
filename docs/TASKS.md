@@ -41,15 +41,15 @@ Use this file to track milestone progress, validation work, and the next concret
 
 - [x] Pull / switch to `feature/single-camera-perception` locally.
 - [x] Create and activate the Python virtual environment.
-- [ ] Install dependencies successfully. **Blocked: system drive ran out of space while installing PyTorch.**
-- [ ] Verify runtime is using OpenCV 5.x.
+- [x] Install dependencies successfully.
+- [x] Verify runtime is using OpenCV 5.x. **Observed: OpenCV 5.0.0.**
 - [ ] Run unit tests locally.
-- [ ] Open the webcam successfully.
-- [ ] Confirm the YOLO model loads successfully.
+- [x] Open the webcam successfully.
+- [x] Confirm the YOLO model loads successfully.
 - [ ] Test movement from left -> center -> right.
 - [ ] Test another person or object crossing the frame.
 - [ ] Check track-ID stability across movement.
-- [ ] Record baseline FPS.
+- [x] Record baseline FPS. **Initial observed run: ~13.3 FPS at 1280x720.**
 - [ ] Record obvious detection / tracking failure cases.
 - [ ] Verify `Q` and `Esc` stop the application cleanly.
 
@@ -114,4 +114,4 @@ These are intentionally deferred so Milestone 1 stays small and testable.
 
 ## Current next action
 
-Free enough space on the project laptop for the remaining ML dependencies, then rerun `pip install -r requirements.txt`. Do not move on to camera validation until the environment installs cleanly.
+Run the unit tests, then exercise the live camera with left -> center -> right movement and a crossing subject/object. Record track-ID stability and obvious failures before declaring Milestone 1 complete.
