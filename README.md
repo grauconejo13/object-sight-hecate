@@ -67,15 +67,48 @@ Later stages may add multi-camera fusion, adaptive low-light capture, pose/activ
 
 - Python
 - OpenCV 5
-- Pretrained object detection / tracking tooling
+- Ultralytics YOLO for the first detector/tracker adapter
 - AWS services where they add meaningful agentic or cloud capability
 
-Additional libraries will be added only when a concrete feature requires them.
+Dependencies are pinned as the competition build stabilizes.
+
+## First Prototype
+
+The first vertical slice now supports:
+
+- OpenCV 5 camera or video input
+- object detection and persistent track IDs
+- wearer-relative left / ahead / right positioning
+- initial clock-direction hints (`9`, `12`, `3`)
+- on-screen detection, confidence, track ID, OpenCV version, and FPS overlays
+
+### Run locally
+
+```bash
+python -m venv .venv
+```
+
+Activate the environment, then:
+
+```bash
+pip install -r requirements.txt
+python main.py --source 0
+```
+
+Press `q` or `Esc` to stop. A video path can be supplied instead of camera index `0`.
+
+Run the current unit tests with:
+
+```bash
+python -m unittest discover -s tests
+```
+
+The first model may download automatically on initial use.
 
 ## Status
 
-🕷️ **Pre-build / architecture stage**
+🕷️ **Milestone 1 in progress — single-camera perception**
 
-The first technical milestone will remain deliberately small: prove reliable perception from a single camera before adding spatial reasoning or multi-camera fusion.
+The current goal is deliberately small: verify reliable single-camera capture, detection/tracking, and basic wearer-relative positioning before adding trajectory reasoning, selective alerts, multi-camera fusion, or AWS orchestration.
 
-See [`docs/project-brief.md`](docs/project-brief.md) and [`docs/architecture.md`](docs/architecture.md).
+See [`docs/project-brief.md`](docs/project-brief.md), [`docs/architecture.md`](docs/architecture.md), and [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md).
