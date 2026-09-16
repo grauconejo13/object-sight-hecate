@@ -46,21 +46,21 @@ Use this file to track milestone progress, validation work, and the next concret
 - [ ] Run unit tests locally.
 - [x] Open the webcam successfully.
 - [x] Confirm the YOLO model loads successfully.
-- [ ] Test movement from left -> center -> right.
-- [ ] Test another person or object crossing the frame.
-- [ ] Check track-ID stability across movement.
-- [x] Record baseline FPS. **Initial observed run: ~13.3 FPS at 1280x720.**
-- [ ] Record obvious detection / tracking failure cases.
+- [x] Test movement from left -> center -> right. **Observed correct 9 / 12 / 3 o'clock transitions.**
+- [x] Test a subject crossing the frame. **Self-crossing completed.**
+- [x] Check track-ID behavior across movement. **IDs change after leaving the frame and re-entering; no continuous-visible churn was reported.**
+- [x] Record baseline FPS. **Initial observed run: ~13.3 FPS at 1280x720; live FPS fluctuates during movement.**
+- [x] Record obvious detection / tracking failure cases.
 - [ ] Verify `Q` and `Esc` stop the application cleanly.
 
 ### Milestone 1 exit criteria
 
-- [ ] Camera loop runs reliably on the project laptop.
-- [ ] Detection is reliable enough for prototype use.
-- [ ] Tracking IDs are usable for temporal reasoning.
-- [ ] Left / ahead / right spatial mapping behaves correctly.
-- [ ] Baseline real-time performance is documented.
-- [ ] Major failure cases are documented.
+- [x] Camera loop runs reliably on the project laptop.
+- [x] Detection is reliable enough for prototype use, with known class/pose limitations documented.
+- [x] Tracking IDs are usable for short temporal reasoning while a subject remains continuously visible; re-identification after disappearance is not yet supported.
+- [x] Left / ahead / right spatial mapping behaves correctly.
+- [x] Baseline real-time performance is documented.
+- [x] Major failure cases are documented.
 - [ ] Draft PR is ready to merge into `main`.
 
 ---
@@ -114,4 +114,4 @@ These are intentionally deferred so Milestone 1 stays small and testable.
 
 ## Current next action
 
-Run the unit tests, then exercise the live camera with left -> center -> right movement and a crossing subject/object. Record track-ID stability and obvious failures before declaring Milestone 1 complete.
+Run the unit tests and verify both `Q` and `Esc` exit behavior. If both pass, Milestone 1 can be closed and the draft PR can move toward merge.
