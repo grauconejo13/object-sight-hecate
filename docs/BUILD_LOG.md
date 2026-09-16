@@ -4,7 +4,7 @@ Chronological record of meaningful Object-Sight Hecate build sessions.
 
 Use this file to capture what changed, what worked, what failed, and what should happen next.
 
-## 2026-09-15 — Milestone 1 started: single-camera perception
+## 2026-09-15 — Milestone 1 completed: single-camera perception
 
 **Goal**
 
@@ -28,6 +28,7 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Exercised a subject crossing the frame and observed tracker behavior across disappear/re-enter cycles.
 - Recorded initial class/pose failure cases.
 - Ran the local spatial mapping test suite successfully: 3/3 tests passed in 0.001s.
+- Verified clean in-app exits in two consecutive launches using the `Q` / `Esc` controls, with no traceback on return to PowerShell.
 
 **What worked**
 
@@ -41,14 +42,15 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Center, left, and right movement correctly mapped to `12`, `9`, and `3 o'clock` respectively.
 - Track IDs can change after a subject fully leaves the camera view and returns; this is acceptable for the current short-term tracking baseline.
 - All three current spatial mapping unit tests passed locally.
+- Application shutdown controls work cleanly without needing Ctrl+C.
 
 **Problems / failures**
 
 - Initial dependency installation stopped while installing PyTorch with `OSError: [Errno 28] No space left on device`.
 - The system drive was cleaned up and the environment proceeded afterward.
 - Object classification is sensitive to pose and available COCO classes: a soda/pop can may be labeled `cell phone`, a flat book may be missed while an open book is detected, and a plant/pot can alternate between `cup` and `potted plant`.
-- One later camera run emitted `WARNING not enough matching points` from the tracker and was stopped with Ctrl+C, producing a `KeyboardInterrupt` while OpenCV was waiting on the next capture read.
-- `Q` and `Esc` clean-exit behavior still need explicit confirmation.
+- One camera run emitted `WARNING not enough matching points` from tracker motion compensation. This did not prevent later clean launches and exits, but remains a useful tracker failure case to monitor.
+- Re-identification after a subject fully leaves the frame is not supported in Milestone 1.
 - No trajectory, distance, relevance scoring, selective alerts, or AWS behavior exists yet.
 
 **Evidence / measurements**
@@ -60,12 +62,18 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Live detections visibly included confidence scores, track IDs, and wearer-relative clock-position hints.
 - Spatial direction mapping passed the first manual movement test.
 - Unit tests: `3 passed`, runtime `0.001s`.
+- Two final camera launches exited cleanly back to PowerShell without exception using in-app controls.
 - Failure cases are recorded in `docs/PERFORMANCE.md` for later evaluation.
+
+**Milestone result**
+
+Milestone 1 is complete and the feature branch is ready for merge into `main`.
 
 **Next step**
 
-- Relaunch the live camera and explicitly verify both `Q` and `Esc` stop the application cleanly.
-- If both pass, close Milestone 1 and prepare the draft PR for merge before starting temporal spatial awareness.
+- Merge Milestone 1 when ready.
+- Begin Milestone 2 with short per-track position history.
+- Add movement-direction estimation before attempting approaching / receding classification.
 
 ## 2026-09-14 — Repository initialized
 
