@@ -43,7 +43,7 @@ Use this file to track milestone progress, validation work, and the next concret
 - [x] Create and activate the Python virtual environment.
 - [x] Install dependencies successfully.
 - [x] Verify runtime is using OpenCV 5.x. **Observed: OpenCV 5.0.0.**
-- [ ] Run unit tests locally.
+- [x] Run unit tests locally. **3/3 spatial mapping tests passed in 0.001s.**
 - [x] Open the webcam successfully.
 - [x] Confirm the YOLO model loads successfully.
 - [x] Test movement from left -> center -> right. **Observed correct 9 / 12 / 3 o'clock transitions.**
@@ -51,7 +51,7 @@ Use this file to track milestone progress, validation work, and the next concret
 - [x] Check track-ID behavior across movement. **IDs change after leaving the frame and re-entering; no continuous-visible churn was reported.**
 - [x] Record baseline FPS. **Initial observed run: ~13.3 FPS at 1280x720; live FPS fluctuates during movement.**
 - [x] Record obvious detection / tracking failure cases.
-- [ ] Verify `Q` and `Esc` stop the application cleanly.
+- [ ] Verify `Q` and `Esc` stop the application cleanly. **Latest run was stopped with Ctrl+C and produced `KeyboardInterrupt`; Q/Esc still need explicit confirmation.**
 
 ### Milestone 1 exit criteria
 
@@ -114,4 +114,4 @@ These are intentionally deferred so Milestone 1 stays small and testable.
 
 ## Current next action
 
-Run the unit tests and verify both `Q` and `Esc` exit behavior. If both pass, Milestone 1 can be closed and the draft PR can move toward merge.
+Relaunch the live camera and explicitly verify both `Q` and `Esc` exit cleanly. If both pass, Milestone 1 can be closed and the draft PR can move toward merge.
