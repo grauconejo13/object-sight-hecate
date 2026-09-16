@@ -6,6 +6,7 @@ import time
 import cv2
 
 from object_sight_hecate.spatial.position import observe
+from object_sight_hecate.spatial.temporal import TemporalObservation, TemporalTracker
 from object_sight_hecate.vision.camera import CameraConfig, CameraSource
 from object_sight_hecate.vision.detector import ObjectDetector
 
@@ -23,8 +24,9 @@ def _require_opencv_5() -> None:
         )
 
 
-def _draw_observation(frame, observation) -> None:
-    detection = observation.detection
+def _draw_observation(frame, observation: TemporalObservation) -> None:
+    spatial = observation.spatial
+    detection = spatial.detection
     cv2.rectangle(
         frame,
         (detection.x1, detection.y1),
@@ -36,7 +38,8 @@ def _draw_observation(frame, observation) -> None:
     track = "?" if detection.track_id is None else str(detection.track_id)
     text = (
         f"{detection.label} #{track} {detection.confidence:.2f} | "
-        f"{observation.horizontal_position} ({observation.clock_position} o'clock)"
+        f"{spatial.horizontal_position} ({spatial.clock_position} o'clock) | "
+        f"{observation.horizontal_motion} | {observation.range_trend}"
     )
     text_y = max(24, detection.y1 - 8)
     cv2.putText(
@@ -44,7 +47,7 @@ def _draw_observation(frame, observation) -> None:
         text,
         (detection.x1, text_y),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.55,
+        0.50,
         (255, 255, 255),
         2,
         cv2.LINE_AA,
@@ -66,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
 def run(source: int | str, model_name: str, confidence: float) -> None:
     _require_opencv_5()
     detector = ObjectDetector(model_name=model_name, confidence=confidence)
+    temporal_tracker = TemporalTracker()
 
     previous_time = time.perf_counter()
     fps = 0.0
@@ -75,10 +79,17 @@ def run(source: int | str, model_name: str, confidence: float) -> None:
             for frame in camera.frames():
                 detections = detector.track(frame)
                 frame_height, frame_width = frame.shape[:2]
+                observation_time = time.perf_counter()
 
                 for detection in detections:
-                    observation = observe(detection, frame_width)
-                    _draw_observation(frame, observation)
+                    spatial_observation = observe(detection, frame_width)
+                    temporal_observation = temporal_tracker.update(
+                        spatial_observation,
+                        frame_width,
+                        frame_height,
+                        timestamp=observation_time,
+                    )
+                    _draw_observation(frame, temporal_observation)
 
                 now = time.perf_counter()
                 elapsed = now - previous_time
