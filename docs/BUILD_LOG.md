@@ -24,6 +24,9 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Created and activated a Python 3.11 virtual environment.
 - Freed system-drive space after the first PyTorch installation failed, then completed the dependency setup.
 - Ran the first live webcam session successfully.
+- Completed live left -> center -> right spatial validation.
+- Exercised a subject crossing the frame and observed tracker behavior across disappear/re-enter cycles.
+- Recorded initial class/pose failure cases.
 
 **What worked**
 
@@ -34,14 +37,16 @@ Use this file to capture what changed, what worked, what failed, and what should
 - `pip` upgraded successfully before dependency installation.
 - OpenCV 5.0.0 launched successfully with the webcam at 1280x720.
 - YOLO loaded and produced live detections with track IDs.
-- The first observed frame correctly labeled a person as `ahead (12 o'clock)` and a cell phone on the right as `right (3 o'clock)`.
+- Center, left, and right movement correctly mapped to `12`, `9`, and `3 o'clock` respectively.
+- Track IDs can change after a subject fully leaves the camera view and returns; this is acceptable for the current short-term tracking baseline.
 
 **Problems / failures**
 
 - Initial dependency installation stopped while installing PyTorch with `OSError: [Errno 28] No space left on device`.
-- The system drive was cleaned up and the environment was able to proceed afterward.
-- Unit tests have not yet been confirmed locally.
-- Left -> center -> right movement, crossing behavior, track-ID stability, and clean keyboard exit still need explicit validation.
+- The system drive was cleaned up and the environment proceeded afterward.
+- Unit tests still need to be confirmed locally.
+- `Q` and `Esc` clean-exit behavior still need explicit confirmation.
+- Object classification is sensitive to pose and available COCO classes: a soda/pop can may be labeled `cell phone`, a flat book may be missed while an open book is detected, and a plant/pot can alternate between `cup` and `potted plant`.
 - No trajectory, distance, relevance scoring, selective alerts, or AWS behavior exists yet.
 
 **Evidence / measurements**
@@ -49,16 +54,16 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Local Python version: `3.11.5`.
 - Runtime OpenCV version observed: `5.0.0`.
 - First webcam run resolution: `1280x720`.
-- Initial observed performance: approximately `13.3 FPS`.
+- Initial observed performance: approximately `13.3 FPS`; live FPS fluctuates during movement.
 - Live detections visibly included confidence scores, track IDs, and wearer-relative clock-position hints.
+- Spatial direction mapping passed the first manual movement test.
+- Failure cases are now recorded in `docs/PERFORMANCE.md` for later evaluation.
 
 **Next step**
 
 - Run `python -m unittest discover -s tests -v` and record the result.
-- Exercise the live camera with left -> center -> right movement.
-- Test another person or object crossing the frame.
-- Watch whether track IDs remain stable enough for temporal reasoning.
-- Record obvious failure cases and verify `Q` / `Esc` exit behavior before merging Milestone 1.
+- Verify both `Q` and `Esc` stop the application cleanly.
+- If both pass, close Milestone 1 and prepare the draft PR for merge before starting temporal spatial awareness.
 
 ## 2026-09-14 — Repository initialized
 
