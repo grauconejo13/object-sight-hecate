@@ -27,6 +27,7 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Completed live left -> center -> right spatial validation.
 - Exercised a subject crossing the frame and observed tracker behavior across disappear/re-enter cycles.
 - Recorded initial class/pose failure cases.
+- Ran the local spatial mapping test suite successfully: 3/3 tests passed in 0.001s.
 
 **What worked**
 
@@ -39,14 +40,15 @@ Use this file to capture what changed, what worked, what failed, and what should
 - YOLO loaded and produced live detections with track IDs.
 - Center, left, and right movement correctly mapped to `12`, `9`, and `3 o'clock` respectively.
 - Track IDs can change after a subject fully leaves the camera view and returns; this is acceptable for the current short-term tracking baseline.
+- All three current spatial mapping unit tests passed locally.
 
 **Problems / failures**
 
 - Initial dependency installation stopped while installing PyTorch with `OSError: [Errno 28] No space left on device`.
 - The system drive was cleaned up and the environment proceeded afterward.
-- Unit tests still need to be confirmed locally.
-- `Q` and `Esc` clean-exit behavior still need explicit confirmation.
 - Object classification is sensitive to pose and available COCO classes: a soda/pop can may be labeled `cell phone`, a flat book may be missed while an open book is detected, and a plant/pot can alternate between `cup` and `potted plant`.
+- One later camera run emitted `WARNING not enough matching points` from the tracker and was stopped with Ctrl+C, producing a `KeyboardInterrupt` while OpenCV was waiting on the next capture read.
+- `Q` and `Esc` clean-exit behavior still need explicit confirmation.
 - No trajectory, distance, relevance scoring, selective alerts, or AWS behavior exists yet.
 
 **Evidence / measurements**
@@ -57,12 +59,12 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Initial observed performance: approximately `13.3 FPS`; live FPS fluctuates during movement.
 - Live detections visibly included confidence scores, track IDs, and wearer-relative clock-position hints.
 - Spatial direction mapping passed the first manual movement test.
-- Failure cases are now recorded in `docs/PERFORMANCE.md` for later evaluation.
+- Unit tests: `3 passed`, runtime `0.001s`.
+- Failure cases are recorded in `docs/PERFORMANCE.md` for later evaluation.
 
 **Next step**
 
-- Run `python -m unittest discover -s tests -v` and record the result.
-- Verify both `Q` and `Esc` stop the application cleanly.
+- Relaunch the live camera and explicitly verify both `Q` and `Esc` stop the application cleanly.
 - If both pass, close Milestone 1 and prepare the draft PR for merge before starting temporal spatial awareness.
 
 ## 2026-09-14 — Repository initialized
