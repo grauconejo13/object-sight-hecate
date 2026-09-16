@@ -1,12 +1,6 @@
-"""Object-Sight Hecate entry point.
+"""Object-Sight Hecate application entry point."""
 
-The competition build is intentionally not implemented yet. This file exists so the
-repository has a clear application entry point when development begins.
-"""
-
-
-def main() -> None:
-    print("Object-Sight Hecate — scaffold ready.")
+from object_sight_hecate.app import main
 
 
 if __name__ == "__main__":
