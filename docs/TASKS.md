@@ -51,7 +51,7 @@ Use this file to track milestone progress, validation work, and the next concret
 - [x] Check track-ID behavior across movement. **IDs change after leaving the frame and re-entering; no continuous-visible churn was reported.**
 - [x] Record baseline FPS. **Initial observed run: ~13.3 FPS at 1280x720; live FPS fluctuates during movement.**
 - [x] Record obvious detection / tracking failure cases.
-- [ ] Verify `Q` and `Esc` stop the application cleanly. **Latest run was stopped with Ctrl+C and produced `KeyboardInterrupt`; Q/Esc still need explicit confirmation.**
+- [x] Verify `Q` and `Esc` stop the application cleanly. **Two consecutive launches returned directly to PowerShell without traceback.**
 
 ### Milestone 1 exit criteria
 
@@ -61,7 +61,9 @@ Use this file to track milestone progress, validation work, and the next concret
 - [x] Left / ahead / right spatial mapping behaves correctly.
 - [x] Baseline real-time performance is documented.
 - [x] Major failure cases are documented.
-- [ ] Draft PR is ready to merge into `main`.
+- [x] Draft PR is ready to merge into `main`.
+
+**Milestone 1 status: Complete.**
 
 ---
 
@@ -114,4 +116,4 @@ These are intentionally deferred so Milestone 1 stays small and testable.
 
 ## Current next action
 
-Relaunch the live camera and explicitly verify both `Q` and `Esc` exit cleanly. If both pass, Milestone 1 can be closed and the draft PR can move toward merge.
+Merge Milestone 1 when ready, then begin Milestone 2 with short per-track position history and movement-direction estimation before attempting approaching / receding classification.
