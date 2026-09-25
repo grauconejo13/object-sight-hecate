@@ -6,61 +6,10 @@ Use this file to track milestone progress, validation work, and the next concret
 
 ## Milestone 1 — Single-Camera Perception
 
-### Repository / setup
-
-- [x] Create private `object-sight-hecate` repository.
-- [x] Add project architecture and documentation scaffolding.
-- [x] Create `feature/single-camera-perception` branch.
-- [x] Open draft PR for Milestone 1.
-- [x] Pin OpenCV 5 dependency.
-- [x] Pin Ultralytics / YOLO dependency.
-
-### Camera + perception
-
-- [x] Open webcam or video source with OpenCV.
-- [x] Read frames continuously.
-- [x] Run object detection.
-- [x] Add persistent tracking IDs.
-- [x] Draw bounding boxes.
-- [x] Display class label and confidence.
-- [x] Display track ID.
-- [x] Display OpenCV version.
-- [x] Display live FPS.
-
-### Basic spatial awareness
-
-- [x] Calculate object center position.
-- [x] Divide the image into left / ahead / right regions.
-- [x] Map horizontal position to initial clock hints:
-  - [x] `9 o'clock` — left
-  - [x] `12 o'clock` — ahead
-  - [x] `3 o'clock` — right
-- [x] Add unit tests for spatial mapping.
-
-### Local validation required
-
-- [x] Pull / switch to `feature/single-camera-perception` locally.
-- [x] Create and activate the Python virtual environment.
-- [x] Install dependencies successfully.
-- [x] Verify runtime is using OpenCV 5.x. **Observed: OpenCV 5.0.0.**
-- [x] Run unit tests locally. **3/3 spatial mapping tests passed in 0.001s.**
-- [x] Open the webcam successfully.
-- [x] Confirm the YOLO model loads successfully.
-- [x] Test movement from left -> center -> right. **Observed correct 9 / 12 / 3 o'clock transitions.**
-- [x] Test a subject crossing the frame. **Self-crossing completed.**
-- [x] Check track-ID behavior across movement. **IDs change after leaving the frame and re-entering; no continuous-visible churn was reported.**
-- [x] Record baseline FPS. **Initial observed run: ~13.3 FPS at 1280x720; live FPS fluctuates during movement.**
-- [x] Record obvious detection / tracking failure cases.
-- [x] Verify `Q` and `Esc` stop the application cleanly. **Two consecutive launches returned directly to PowerShell without traceback.**
-
-### Milestone 1 exit criteria
-
-- [x] Camera loop runs reliably on the project laptop.
-- [x] Detection is reliable enough for prototype use, with known class/pose limitations documented.
-- [x] Tracking IDs are usable for short temporal reasoning while a subject remains continuously visible; re-identification after disappearance is not yet supported.
-- [x] Left / ahead / right spatial mapping behaves correctly.
-- [x] Baseline real-time performance is documented.
-- [x] Major failure cases are documented.
+- [x] Camera/video input, detection, tracking IDs, overlays, and OpenCV 5 runtime.
+- [x] Left / ahead / right spatial mapping with initial 9 / 12 / 3 o'clock hints.
+- [x] Spatial unit tests and local webcam validation.
+- [x] Baseline performance and failure cases documented.
 - [x] Milestone 1 PR merged into `main`.
 
 **Milestone 1 status: Complete and merged.**
@@ -71,71 +20,85 @@ Use this file to track milestone progress, validation work, and the next concret
 
 ### Implementation
 
-- [x] Create `feature/temporal-spatial-awareness` branch.
-- [x] Maintain a bounded short history per track ID.
-- [x] Estimate horizontal motion from normalized x-position history.
-- [x] Add `moving left`, `moving right`, `steady`, and `unknown` states.
-- [x] Add an initial monocular approaching / receding heuristic from bounding-box area change.
-- [x] Keep stale track history bounded with an age limit.
-- [x] Display temporal motion state in the live overlay.
-- [x] Detect full left-third -> right-third and right-third -> left-third crossing trajectories.
-- [x] Convert temporal state into versioned structured spatial events.
-- [x] Add unit/scenario tests for temporal history, movement, range trend, track isolation, crossings, and event payloads.
-- [x] Document the Spatial Event v1 contract.
+- [x] Bounded short history per track ID.
+- [x] Horizontal motion: `moving left`, `moving right`, `steady`, `unknown`.
+- [x] Initial monocular approaching / receding heuristic from bounding-box area change.
+- [x] Stale-track pruning.
+- [x] Full left-third <-> right-third crossing trajectories.
+- [x] Versioned `SpatialEvent` output.
+- [x] Unit/scenario tests for temporal behavior, crossing, and event payloads.
 
-### Important limitation
+### Local validation still required
 
-The current `approaching` / `receding` state is **not a true distance measurement**. It uses bounding-box area growth/shrinkage as an early monocular heuristic. Camera/wearer motion, pose changes, partial occlusion, and detector-box jitter can all affect it. This must be validated and later combined with ego-motion or stronger depth evidence before it drives consequential alerts.
+- [ ] Run complete unit-test suite on project laptop.
+- [ ] Confirm Milestone 1 behavior still works.
+- [ ] Validate left/right motion, stationary behavior, approach/recede, and full crossings.
+- [ ] Record false transitions, FPS impact, latency, and failure cases.
+- [ ] Tune thresholds only if observed behavior justifies it.
+- [ ] Mark Milestone 2 PR ready and merge after validation.
 
-Crossing detection is intentionally conservative: a track must traverse from the left third to the right third of the frame, or the reverse, within the retained short history. It is a trajectory cue, not an intent inference.
-
-### Local validation required
-
-- [ ] Pull / switch to `feature/temporal-spatial-awareness` locally.
-- [ ] Run the complete unit-test suite.
-- [ ] Confirm existing Milestone 1 behavior still works.
-- [ ] Move continuously left -> right and confirm temporal direction follows motion.
-- [ ] Move continuously right -> left and confirm temporal direction follows motion.
-- [ ] Stand mostly still and confirm motion settles to `steady` rather than churning.
-- [ ] Approach the stationary camera and observe `approaching` behavior.
-- [ ] Move away from the stationary camera and observe `receding` behavior.
-- [ ] Perform full left -> right and right -> left crossings and confirm crossing labels appear only for full traversals.
-- [ ] Record false motion / false range-trend / false-crossing transitions.
-- [ ] Record Milestone 2 FPS impact against the ~13.3 FPS Milestone 1 baseline.
-- [ ] Record temporal-processing latency and notable failure cases.
-
-### Remaining Milestone 2 work
-
-- [ ] Tune thresholds / smoothing only if live validation shows churn or missed motion.
-- [ ] Complete local validation above.
-- [ ] Mark the PR ready and merge after validation.
-
-Target progression:
-
-```text
-track ID
-   ↓
-short history
-   ↓
-horizontal motion
-   ↓
-initial range trend
-   ↓
-crossing trajectory
-   ↓
-structured spatial event
-```
+**Milestone 2 status: Implementation complete; live validation pending.**
 
 ---
 
-## Later Milestones — Not Started
+## Milestone 3 — Selective Awareness Engine
 
-- [ ] Selective alert / relevance engine.
+This branch is intentionally stacked on Milestone 2 because it consumes `SpatialEvent` v1.
+
+### Implementation
+
+- [x] Create `feature/selective-awareness-engine` branch.
+- [x] Add deterministic local `AwarenessEngine`.
+- [x] Add `quiet`, `watch`, and `notify` actions.
+- [x] Keep low-confidence and untracked observations quiet.
+- [x] Treat ordinary lateral motion as watch-only.
+- [x] Treat off-axis approaching state as watch-only.
+- [x] Allow high-confidence approaching-ahead state to notify.
+- [x] Allow conservative full-crossing events to notify.
+- [x] Add per-track/event cooldown suppression for duplicate notifications.
+- [x] Add versioned `AwarenessDecision` output with reason codes and optional concise message.
+- [x] Integrate awareness decisions into the live overlay.
+- [x] Add unit tests for quiet/watch/notify routing, cooldowns, independent tracks, and serialization.
+- [x] Document Awareness Decision v1.
+
+### Safety / scope boundary
+
+- [x] Do not infer identity, intent, danger, emotion, suspicion, or trustworthiness.
+- [x] Do not add an `urgent` classification yet; current monocular range evidence is not strong enough for consequential safety classification.
+- [x] Keep rules local and deterministic before adding cloud/agent reasoning.
+
+### Local validation required
+
+- [ ] Run the complete unit-test suite.
+- [ ] Confirm steady tracked subjects remain mostly `quiet`.
+- [ ] Confirm lateral movement becomes `watch` without user-facing message spam.
+- [ ] Confirm a full crossing emits one `notify` then respects cooldown suppression.
+- [ ] Confirm high-confidence approach directly ahead can notify.
+- [ ] Confirm off-axis approach remains `watch`.
+- [ ] Observe multiple tracks and verify cooldown isolation.
+- [ ] Record alert precision / false-notification cases.
+- [ ] Record FPS impact relative to Milestone 2.
+
+### Milestone 3 exit criteria
+
+- [ ] Quiet is demonstrably the common output for uninteresting steady state.
+- [ ] Notify events are sparse and understandable.
+- [ ] Duplicate cue suppression works in live use.
+- [ ] No intent or danger inference is introduced.
+- [ ] Performance remains acceptable for prototype use.
+
+**Milestone 3 status: Implementation slice complete; live validation pending.**
+
+---
+
+## Later Milestones
+
 - [ ] Directional audio and/or haptic cues.
 - [ ] Multi-camera Hecate architecture.
 - [ ] Low-light / adaptive capture experiments.
-- [ ] AWS event pipeline.
-- [ ] Agentic Vision perception -> decision -> action loop.
+- [ ] AWS competition adapter.
+- [ ] Nebius / NVIDIA competition adapter.
+- [ ] Agentic perception -> decision -> action loop for non-time-critical follow-up.
 - [ ] Human-confirmation workflow where appropriate.
 - [ ] Evaluation dataset / repeatable scenario suite.
 - [ ] Final architecture diagram.
@@ -144,4 +107,4 @@ structured spatial event
 
 ## Current next action
 
-On the project laptop, switch to `feature/temporal-spatial-awareness`, pull the branch, run the full unit-test suite, then perform the live direction/range/crossing validation before tuning thresholds or merging Milestone 2.
+On the project laptop, validate Milestone 2 first, then switch to `feature/selective-awareness-engine` and run the Milestone 3 awareness scenarios before tuning relevance thresholds or adding audio/cloud outputs.
