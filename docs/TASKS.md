@@ -69,7 +69,7 @@ Use this file to track milestone progress, validation work, and the next concret
 
 ## Milestone 2 — Temporal Spatial Awareness
 
-### First implementation slice
+### Implementation
 
 - [x] Create `feature/temporal-spatial-awareness` branch.
 - [x] Maintain a bounded short history per track ID.
@@ -78,11 +78,16 @@ Use this file to track milestone progress, validation work, and the next concret
 - [x] Add an initial monocular approaching / receding heuristic from bounding-box area change.
 - [x] Keep stale track history bounded with an age limit.
 - [x] Display temporal motion state in the live overlay.
-- [x] Add unit tests for temporal history, horizontal movement, range trend, and isolated track histories.
+- [x] Detect full left-third -> right-third and right-third -> left-third crossing trajectories.
+- [x] Convert temporal state into versioned structured spatial events.
+- [x] Add unit/scenario tests for temporal history, movement, range trend, track isolation, crossings, and event payloads.
+- [x] Document the Spatial Event v1 contract.
 
 ### Important limitation
 
 The current `approaching` / `receding` state is **not a true distance measurement**. It uses bounding-box area growth/shrinkage as an early monocular heuristic. Camera/wearer motion, pose changes, partial occlusion, and detector-box jitter can all affect it. This must be validated and later combined with ego-motion or stronger depth evidence before it drives consequential alerts.
+
+Crossing detection is intentionally conservative: a track must traverse from the left third to the right third of the frame, or the reverse, within the retained short history. It is a trajectory cue, not an intent inference.
 
 ### Local validation required
 
@@ -94,16 +99,16 @@ The current `approaching` / `receding` state is **not a true distance measuremen
 - [ ] Stand mostly still and confirm motion settles to `steady` rather than churning.
 - [ ] Approach the stationary camera and observe `approaching` behavior.
 - [ ] Move away from the stationary camera and observe `receding` behavior.
-- [ ] Record false motion / false range-trend transitions.
+- [ ] Perform full left -> right and right -> left crossings and confirm crossing labels appear only for full traversals.
+- [ ] Record false motion / false range-trend / false-crossing transitions.
 - [ ] Record Milestone 2 FPS impact against the ~13.3 FPS Milestone 1 baseline.
+- [ ] Record temporal-processing latency and notable failure cases.
 
 ### Remaining Milestone 2 work
 
-- [ ] Improve temporal smoothing based on live validation.
-- [ ] Detect meaningful crossing trajectories.
-- [ ] Convert temporal state into structured spatial events.
-- [ ] Add scenario tests for moving subjects.
-- [ ] Record latency and failure cases.
+- [ ] Tune thresholds / smoothing only if live validation shows churn or missed motion.
+- [ ] Complete local validation above.
+- [ ] Mark the PR ready and merge after validation.
 
 Target progression:
 
@@ -116,9 +121,9 @@ horizontal motion
    ↓
 initial range trend
    ↓
-trajectory
+crossing trajectory
    ↓
-spatial event
+structured spatial event
 ```
 
 ---
@@ -139,4 +144,4 @@ spatial event
 
 ## Current next action
 
-Switch the project laptop to `feature/temporal-spatial-awareness`, pull the new code, run the full unit-test suite, then perform the first live motion-direction test before tuning thresholds or adding crossing-trajectory logic.
+On the project laptop, switch to `feature/temporal-spatial-awareness`, pull the branch, run the full unit-test suite, then perform the live direction/range/crossing validation before tuning thresholds or merging Milestone 2.
