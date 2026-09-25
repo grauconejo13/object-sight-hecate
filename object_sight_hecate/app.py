@@ -36,10 +36,15 @@ def _draw_observation(frame, observation: TemporalObservation) -> None:
     )
 
     track = "?" if detection.track_id is None else str(detection.track_id)
+    crossing = (
+        f" | crossing {observation.crossing_trajectory.replace('_', ' ')}"
+        if observation.crossing_trajectory
+        else ""
+    )
     text = (
         f"{detection.label} #{track} {detection.confidence:.2f} | "
         f"{spatial.horizontal_position} ({spatial.clock_position} o'clock) | "
-        f"{observation.horizontal_motion} | {observation.range_trend}"
+        f"{observation.horizontal_motion} | {observation.range_trend}{crossing}"
     )
     text_y = max(24, detection.y1 - 8)
     cv2.putText(
