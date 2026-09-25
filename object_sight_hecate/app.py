@@ -5,6 +5,7 @@ import time
 
 import cv2
 
+from object_sight_hecate.awareness import AwarenessDecision, AwarenessEngine
 from object_sight_hecate.spatial.position import observe
 from object_sight_hecate.spatial.temporal import TemporalObservation, TemporalTracker
 from object_sight_hecate.vision.camera import CameraConfig, CameraSource
@@ -24,7 +25,11 @@ def _require_opencv_5() -> None:
         )
 
 
-def _draw_observation(frame, observation: TemporalObservation) -> None:
+def _draw_observation(
+    frame,
+    observation: TemporalObservation,
+    decision: AwarenessDecision,
+) -> None:
     spatial = observation.spatial
     detection = spatial.detection
     cv2.rectangle(
@@ -44,7 +49,8 @@ def _draw_observation(frame, observation: TemporalObservation) -> None:
     text = (
         f"{detection.label} #{track} {detection.confidence:.2f} | "
         f"{spatial.horizontal_position} ({spatial.clock_position} o'clock) | "
-        f"{observation.horizontal_motion} | {observation.range_trend}{crossing}"
+        f"{observation.horizontal_motion} | {observation.range_trend}{crossing} | "
+        f"awareness={decision.action}"
     )
     text_y = max(24, detection.y1 - 8)
     cv2.putText(
@@ -52,11 +58,24 @@ def _draw_observation(frame, observation: TemporalObservation) -> None:
         text,
         (detection.x1, text_y),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.50,
+        0.48,
         (255, 255, 255),
         2,
         cv2.LINE_AA,
     )
+
+    if decision.message:
+        message_y = min(frame.shape[0] - 16, detection.y2 + 24)
+        cv2.putText(
+            frame,
+            decision.message,
+            (detection.x1, message_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,6 +94,8 @@ def run(source: int | str, model_name: str, confidence: float) -> None:
     _require_opencv_5()
     detector = ObjectDetector(model_name=model_name, confidence=confidence)
     temporal_tracker = TemporalTracker()
+    awareness_engine = AwarenessEngine()
+    event_source = f"camera-{source}" if isinstance(source, int) else "video-source"
 
     previous_time = time.perf_counter()
     fps = 0.0
@@ -94,7 +115,12 @@ def run(source: int | str, model_name: str, confidence: float) -> None:
                         frame_height,
                         timestamp=observation_time,
                     )
-                    _draw_observation(frame, temporal_observation)
+                    event = temporal_tracker.to_event(
+                        temporal_observation,
+                        source=event_source,
+                    )
+                    decision = awareness_engine.evaluate(event)
+                    _draw_observation(frame, temporal_observation, decision)
 
                 now = time.perf_counter()
                 elapsed = now - previous_time
