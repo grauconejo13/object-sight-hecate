@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from time import perf_counter
+from typing import Any
 
 from object_sight_hecate.spatial.position import SpatialObservation
 
@@ -17,11 +18,36 @@ class TrackSample:
 @dataclass(frozen=True)
 class TemporalObservation:
     spatial: SpatialObservation
+    timestamp: float
     horizontal_motion: str
     range_trend: str
+    crossing_trajectory: str | None
     delta_x: float | None
     area_change_ratio: float | None
     sample_count: int
+
+
+@dataclass(frozen=True)
+class SpatialEvent:
+    """Structured, model-agnostic output from temporal spatial reasoning."""
+
+    schema_version: str
+    timestamp: float
+    source: str
+    event_type: str
+    track_id: int | None
+    label: str
+    confidence: float
+    horizontal_position: str
+    clock_position: int
+    horizontal_motion: str
+    range_trend: str
+    crossing_trajectory: str | None
+    delta_x: float | None
+    area_change_ratio: float | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 class TemporalTracker:
@@ -72,8 +98,10 @@ class TemporalTracker:
         if track_id is None:
             return TemporalObservation(
                 spatial=observation,
+                timestamp=now,
                 horizontal_motion="unknown",
                 range_trend="unknown",
+                crossing_trajectory=None,
                 delta_x=None,
                 area_change_ratio=None,
                 sample_count=0,
@@ -96,8 +124,10 @@ class TemporalTracker:
         if len(history) < 2:
             return TemporalObservation(
                 spatial=observation,
+                timestamp=now,
                 horizontal_motion="unknown",
                 range_trend="unknown",
+                crossing_trajectory=None,
                 delta_x=None,
                 area_change_ratio=None,
                 sample_count=len(history),
@@ -126,14 +156,61 @@ class TemporalTracker:
             else:
                 range_trend = "steady"
 
+        crossing_trajectory = self._crossing_trajectory(history)
+
         return TemporalObservation(
             spatial=observation,
+            timestamp=now,
             horizontal_motion=horizontal_motion,
             range_trend=range_trend,
+            crossing_trajectory=crossing_trajectory,
             delta_x=delta_x,
             area_change_ratio=area_change_ratio,
             sample_count=len(history),
         )
+
+    def to_event(
+        self,
+        observation: TemporalObservation,
+        *,
+        source: str = "camera-0",
+    ) -> SpatialEvent:
+        """Convert temporal state into a structured event for downstream layers."""
+        spatial = observation.spatial
+        detection = spatial.detection
+        event_type = "crossing" if observation.crossing_trajectory else "track_update"
+
+        return SpatialEvent(
+            schema_version="1.0",
+            timestamp=observation.timestamp,
+            source=source,
+            event_type=event_type,
+            track_id=detection.track_id,
+            label=detection.label,
+            confidence=detection.confidence,
+            horizontal_position=spatial.horizontal_position,
+            clock_position=spatial.clock_position,
+            horizontal_motion=observation.horizontal_motion,
+            range_trend=observation.range_trend,
+            crossing_trajectory=observation.crossing_trajectory,
+            delta_x=observation.delta_x,
+            area_change_ratio=observation.area_change_ratio,
+        )
+
+    @staticmethod
+    def _crossing_trajectory(history: deque[TrackSample]) -> str | None:
+        """Detect a full left-third <-> right-third crossing within recent history."""
+        if len(history) < 3:
+            return None
+
+        first_x = history[0].normalized_x
+        latest_x = history[-1].normalized_x
+
+        if first_x < 1 / 3 and latest_x > 2 / 3:
+            return "left_to_right"
+        if first_x > 2 / 3 and latest_x < 1 / 3:
+            return "right_to_left"
+        return None
 
     def _prune(self, now: float) -> None:
         stale_ids = [
