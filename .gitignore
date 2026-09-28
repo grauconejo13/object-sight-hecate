@@ -35,3 +35,8 @@ captures/
 *.log
 .cache/
 .pytest_cache/
+
+# Frontend
+node_modules/
+dist/
+.vercel/

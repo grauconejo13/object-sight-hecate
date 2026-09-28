@@ -105,6 +105,13 @@ python -m unittest discover -s tests
 
 The first model may download automatically on initial use.
 
+## ESP32 and phone field tests
+
+- The existing desktop detector can now read the ESP32-S3 CameraWebServer stream or its JPEG snapshot endpoint. See [ESP32 camera setup](docs/ESP32_CAMERA.md).
+- A separate phone-camera preview is ready for Vercel (frontend) and Render (analysis API). It sends one image only when you tap Analyze. See [field test deployment](docs/FIELD_TEST_DEPLOY.md).
+
+These are input and testing paths for the same perception core. Remote cloud inference is experimental and is not used for time-critical alerts. The final OpenCV AI Competition entry still needs a meaningful AWS component.
+
 ## Status
 
 🕷️ **Milestone 1 in progress — single-camera perception**

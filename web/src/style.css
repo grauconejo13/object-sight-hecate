@@ -1,0 +1,36 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #e8eefb;
+  background: #101523;
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.shell { max-width: 920px; margin: auto; padding: clamp(20px, 4vw, 44px); }
+.header { margin-bottom: 24px; }
+.eyebrow { color: #86dcc8; letter-spacing: .18em; font-size: .75rem; font-weight: 700; }
+h1 { font-size: clamp(3rem, 9vw, 5rem); line-height: 1; letter-spacing: -.06em; margin: 12px 0; }
+.star { color: #86dcc8; margin-left: .12em; font-size: .48em; vertical-align: top; }
+.subtitle { max-width: 580px; color: #aebbd1; line-height: 1.5; }
+.viewer { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; max-height: 60vh; overflow: hidden; background: #080d18; border: 1px solid #314356; border-radius: 18px; }
+video { width: 100%; height: 100%; object-fit: contain; }
+.placeholder { position: absolute; max-width: 18em; padding: 16px; text-align: center; color: #adbad0; }
+.badge { position: absolute; left: 14px; top: 14px; padding: 8px 10px; border: 1px solid #547568; border-radius: 6px; background: #0b1619dc; color: #a5e9d9; font: 600 .68rem ui-monospace, monospace; letter-spacing: .06em; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 14px; }
+button { border: 1px solid #82cbbd; border-radius: 10px; padding: 12px 16px; background: #86dcc8; color: #08151a; font: inherit; font-weight: 700; cursor: pointer; }
+button:nth-child(2) { background: #212c42; color: #e8eefb; }
+button:nth-child(3) { border-color: #5d6a80; background: transparent; color: #cbd7eb; }
+button:disabled { opacity: .44; cursor: not-allowed; }
+button:focus-visible, input:focus-visible { outline: 3px solid #f1b563; outline-offset: 3px; }
+.voice-control { display: inline-flex; align-items: center; gap: 8px; color: #c6d4e9; }
+.results { margin-top: 30px; border-top: 1px solid #314356; padding-top: 16px; }
+h2 { margin-bottom: 8px; }
+#status { min-height: 1.5em; color: #a5e9d9; }
+ul { list-style: none; padding: 0; display: grid; gap: 8px; }
+li { border: 1px solid #354359; border-radius: 8px; padding: 12px; background: #192338; }
+.note, footer { color: #aebbd1; line-height: 1.5; font-size: .88rem; }
+footer { margin-top: 40px; }
+@media (max-width: 520px) {
+  .viewer { aspect-ratio: 3 / 4; max-height: 55vh; }
+  .actions button { flex: 1 1 100%; }
+}
