@@ -31,6 +31,18 @@
       </div>
       <label class="voice-control"><input id="voice" type="checkbox" /> Speak detections (manual and live)</label>
 
+      <section class="back-controls" aria-label="Have my back controls">
+        <h2>Have my back</h2>
+        <p>Rear camera view · People first · Approximate screen tracking</p>
+        <div class="actions">
+          <button id="back-mode" type="button" aria-pressed="false">Have my back</button>
+          <button id="focus-person" type="button" disabled>Focus person</button>
+          <button id="listen-command" type="button" disabled>Tap to speak a command</button>
+        </div>
+        <p id="back-status" role="status">Off. Camera positions are relative to the rear camera view.</p>
+        <p class="note">Say “have my back”, “focus” or “track”, or “stop” after tapping the command button. Microphone access and browser speech recognition are optional. A highlighted box follows a person while visible; apparent size changes can also come from moving the camera. No measured distance or safety assessment.</p>
+      </section>
+
       <section class="results" aria-live="polite">
         <h2>Observation</h2>
         <p id="status">Ready when you are.</p>

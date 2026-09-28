@@ -1,4 +1,5 @@
 import "./style.css";
+import { PersonTracks } from "./person-tracks.js";
 
 const video = document.querySelector("#camera");
 const canvas = document.querySelector("#snapshot");
@@ -13,6 +14,10 @@ const stopButton = document.querySelector("#stop");
 const status = document.querySelector("#status");
 const list = document.querySelector("#observations");
 const speakToggle = document.querySelector("#voice");
+const backButton = document.querySelector("#back-mode");
+const focusButton = document.querySelector("#focus-person");
+const listenButton = document.querySelector("#listen-command");
+const backStatus = document.querySelector("#back-status");
 const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 let stream = null;
@@ -29,6 +34,73 @@ const LIVE_SPEECH_CONFIDENCE = 0.55;
 let previousSpokenCandidates = new Set();
 let lastSpokenAt = 0;
 const spokenAt = new Map();
+const personTracks = new PersonTracks();
+let backMode = false;
+let focusedId = null;
+let listening = false;
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null;
+
+function say(message) {
+  if (!speakToggle.checked || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
+}
+
+function resetBackMode() {
+  backMode = false;
+  focusedId = null;
+  personTracks.reset();
+  recognizer?.abort();
+  backStatus.textContent = "Off. Camera positions are relative to the rear camera view.";
+  updateButtons();
+}
+
+function processBackMode(items, width, height) {
+  const { visible, lost } = personTracks.update(items, width, height);
+  if (focusedId !== null && lost.includes(focusedId)) {
+    focusedId = null;
+    say("Track lost.");
+  }
+  for (const track of visible) {
+    if (track.samples.length < 2) continue;
+    if (!track.announced) {
+      // Prioritize one new person per response rather than interrupting every announcement.
+      if (Date.now() - lastSpokenAt >= SPEECH_COOLDOWN_MS) {
+        say(`Person at ${track.item.clock} o'clock in camera view.`);
+        lastSpokenAt = Date.now();
+        track.announced = true;
+      }
+    }
+    if (focusedId === track.id && !track.growthAnnounced && track.samples.length >= 4) {
+      const first = track.samples[0];
+      const recent = track.samples.slice(-2);
+      if (first > 0 && recent.every((value) => value > first * 1.3)
+          && Date.now() - lastSpokenAt >= SPEECH_COOLDOWN_MS) {
+        track.growthAnnounced = true;
+        say("Focused person appears larger in the camera view.");
+        lastSpokenAt = Date.now();
+      }
+    }
+  }
+  backStatus.textContent = focusedId === null
+    ? `${visible.length} person track(s) in camera view. Tap Focus person to select one.`
+    : visible.some((track) => track.id === focusedId)
+      ? `Following person in camera view · track ${focusedId}. Size changes can result from camera movement.`
+      : `Waiting for focused track ${focusedId} to reappear.`;
+  return visible;
+}
+
+function focusPerson() {
+  const candidates = personTracks.tracks.filter((track) => track.missed === 0 && track.samples.length >= 2);
+  if (!candidates.length) { backStatus.textContent = "No stable person detected to focus on."; return; }
+  const index = candidates.findIndex((track) => track.id === focusedId);
+  const chosen = candidates[(index + 1) % candidates.length];
+  focusedId = chosen.id;
+  backStatus.textContent = `Following person in camera view · track ${focusedId}.`;
+  say(`Focus set. Person at ${chosen.item.clock} o'clock in camera view.`);
+  if (lastLiveResult) drawLiveDetections(lastLiveResult.items, lastLiveResult.imageWidth, lastLiveResult.imageHeight);
+}
 
 function resetLiveSpeech() {
   previousSpokenCandidates.clear();
@@ -38,9 +110,7 @@ function resetLiveSpeech() {
 }
 
 function speakResult(item) {
-  if (!speakToggle.checked || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${item.label} ${item.position}.`));
+  say(`${item.label} ${item.position}.`);
 }
 
 function speakLiveResult(items) {
@@ -75,6 +145,11 @@ function updateButtons() {
   liveButton.textContent = live ? "Stop live analysis" : "Start live analysis";
   liveButton.setAttribute("aria-pressed", String(live));
   stopButton.disabled = !stream || switching;
+  backButton.disabled = switching;
+  backButton.textContent = backMode ? "Stop Have my back" : "Have my back";
+  backButton.setAttribute("aria-pressed", String(backMode));
+  focusButton.disabled = !backMode || !live || !personTracks.tracks.some((track) => track.missed === 0 && track.samples.length >= 2);
+  listenButton.disabled = !SpeechRecognition || !stream || listening || switching;
 }
 
 function clearOverlay() {
@@ -84,6 +159,7 @@ function clearOverlay() {
 
 function stopLiveAnalysis() {
   live = false;
+  resetBackMode();
   resetLiveSpeech();
   clearTimeout(liveTimer);
   liveTimer = null;
@@ -244,7 +320,9 @@ function drawLiveDetections(items, imageWidth, imageHeight) {
     const [x1, y1, x2, y2] = item.box;
     const x = offsetX + x1 * scale;
     const y = offsetY + y1 * scale;
-    ctx.strokeStyle = "#86dcc8";
+    const focused = backMode && personTracks.tracks.some((track) => track.id === focusedId && track.missed === 0 && track.item === item);
+    ctx.strokeStyle = focused ? "#ffcb82" : "#86dcc8";
+    ctx.lineWidth = focused ? 4 : 2;
     ctx.strokeRect(x, y, (x2 - x1) * scale, (y2 - y1) * scale);
     const label = `${item.label} ${Math.round(item.confidence * 100)}%`;
     const labelY = y >= fontSize + 10 ? y - fontSize - 9 : y;
@@ -288,8 +366,9 @@ async function analyzeFrame(isLive = false) {
 
     const items = data.observations.sort((a, b) => b.confidence - a.confidence);
     if (isLive) {
+      if (backMode) processBackMode(items, data.width, data.height);
       drawLiveDetections(items, data.width, data.height);
-      speakLiveResult(items);
+      if (!backMode) speakLiveResult(items);
     } else {
       drawDetections(items, data.width, data.height);
     }
@@ -332,6 +411,72 @@ liveButton.addEventListener("click", () => {
     clearOverlay();
     updateButtons();
     analyzeFrame(true);
+  }
+});
+
+backButton.addEventListener("click", async () => {
+  if (backMode) {
+    stopLiveAnalysis();
+    setStatus("Have my back stopped.");
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatus("Camera access needs HTTPS and a supported browser.");
+    return;
+  }
+  try {
+    if (stream && cameraFacing !== "environment") {
+      stopLiveAnalysis();
+      stream.getTracks().forEach((track) => track.stop());
+      stream = null;
+      video.srcObject = null;
+    }
+    cameraFacing = "environment";
+    if (!stream) await openCamera(true);
+    if (live) stopLiveAnalysis();
+    speakToggle.checked = true;
+    resetLiveSpeech();
+    personTracks.reset();
+    backMode = true;
+    live = true;
+    canvas.hidden = true;
+    backStatus.textContent = "Watching through the rear camera. Positions refer to its view.";
+    updateButtons();
+    analyzeFrame(true);
+  } catch (error) {
+    stopCamera();
+    setStatus(`Could not start Have my back: ${error.message}`);
+  }
+});
+
+focusButton.addEventListener("click", focusPerson);
+
+if (!SpeechRecognition) {
+  listenButton.title = "Voice commands are unavailable in this browser. Use the buttons instead.";
+}
+listenButton.addEventListener("click", () => {
+  if (!SpeechRecognition || !stream || listening) return;
+  recognizer = new SpeechRecognition();
+  recognizer.lang = "en-US";
+  recognizer.continuous = false;
+  recognizer.interimResults = false;
+  recognizer.onresult = (event) => {
+    const command = event.results[0][0].transcript.toLowerCase().trim();
+    if (/have my back/.test(command) && !backMode) backButton.click();
+    else if (/have my back/.test(command)) backStatus.textContent = "Have my back is already on.";
+    else if (/\b(track|focus)\b/.test(command) && backMode) focusPerson();
+    else if (/\bstop\b/.test(command) && backMode) backButton.click();
+    else backStatus.textContent = `Command not recognized: ${command}. Try “focus” or “stop”.`;
+  };
+  recognizer.onerror = (event) => { backStatus.textContent = `Voice command unavailable: ${event.error}. Use the buttons.`; };
+  recognizer.onend = () => { listening = false; updateButtons(); };
+  try {
+    recognizer.start();
+    listening = true;
+    backStatus.textContent = "Listening once for Have my back, focus, track, or stop…";
+    updateButtons();
+  } catch (error) {
+    backStatus.textContent = `Could not start voice command: ${error.message}`;
   }
 });
 
