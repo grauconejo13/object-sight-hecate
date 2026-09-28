@@ -56,8 +56,9 @@ function resetBackMode() {
   updateButtons();
 }
 
-function processBackMode(items, width, height) {
+function processPersonTracks(items, width, height) {
   const { visible, lost } = personTracks.update(items, width, height);
+  if (!backMode) return;
   if (focusedId !== null && lost.includes(focusedId)) {
     focusedId = null;
     say("Track lost.");
@@ -67,20 +68,17 @@ function processBackMode(items, width, height) {
     if (!track.announced) {
       // Prioritize one new person per response rather than interrupting every announcement.
       if (Date.now() - lastSpokenAt >= SPEECH_COOLDOWN_MS) {
-        say(`Person at ${track.item.clock} o'clock in camera view.`);
+        say(`Person ${track.id} at ${track.item.clock} o'clock in camera view.`);
         lastSpokenAt = Date.now();
         track.announced = true;
       }
     }
-    if (focusedId === track.id && !track.growthAnnounced && track.samples.length >= 4) {
-      const first = track.samples[0];
-      const recent = track.samples.slice(-2);
-      if (first > 0 && recent.every((value) => value > first * 1.3)
-          && Date.now() - lastSpokenAt >= SPEECH_COOLDOWN_MS) {
-        track.growthAnnounced = true;
-        say("Focused person appears larger in the camera view.");
-        lastSpokenAt = Date.now();
-      }
+    if (focusedId === track.id && ["larger in view", "smaller in view"].includes(track.motion)
+        && track.motion !== track.lastMotionAnnounced
+        && Date.now() - lastSpokenAt >= SPEECH_COOLDOWN_MS) {
+      say(`Focused person looks ${track.motion} in the camera view.`);
+      track.lastMotionAnnounced = track.motion;
+      lastSpokenAt = Date.now();
     }
   }
   backStatus.textContent = focusedId === null
@@ -88,7 +86,6 @@ function processBackMode(items, width, height) {
     : visible.some((track) => track.id === focusedId)
       ? `Following person in camera view · track ${focusedId}. Size changes can result from camera movement.`
       : `Waiting for focused track ${focusedId} to reappear.`;
-  return visible;
 }
 
 function focusPerson() {
@@ -98,7 +95,7 @@ function focusPerson() {
   const chosen = candidates[(index + 1) % candidates.length];
   focusedId = chosen.id;
   backStatus.textContent = `Following person in camera view · track ${focusedId}.`;
-  say(`Focus set. Person at ${chosen.item.clock} o'clock in camera view.`);
+  say(`Focus set. Person ${chosen.id} at ${chosen.item.clock} o'clock in camera view.`);
   if (lastLiveResult) drawLiveDetections(lastLiveResult.items, lastLiveResult.imageWidth, lastLiveResult.imageHeight);
 }
 
@@ -115,17 +112,28 @@ function speakResult(item) {
 
 function speakLiveResult(items) {
   if (!speakToggle.checked || !("speechSynthesis" in window)) return;
-  const candidates = items.filter((item) => item.confidence >= LIVE_SPEECH_CONFIDENCE);
-  const current = new Set(candidates.map((item) => `${item.label}:${item.position}`));
+  const candidates = items.filter((item) => {
+    if (item.confidence < LIVE_SPEECH_CONFIDENCE) return false;
+    if (item.label !== "person") return true;
+    const track = personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === item);
+    return track && track.motion !== "establishing";
+  });
+  const keyFor = (item) => {
+    const track = personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === item);
+    return track ? `person:${track.id}:${track.motion}:${item.position}` : `${item.label}:${item.position}`;
+  };
+  const current = new Set(candidates.map(keyFor));
   const now = Date.now();
   const newItem = candidates.find((item) => {
-    const key = `${item.label}:${item.position}`;
+    const key = keyFor(item);
     return previousSpokenCandidates.has(key) && now - (spokenAt.get(key) || 0) >= REPEAT_SPEECH_MS;
   });
   previousSpokenCandidates = current;
   if (!newItem || now - lastSpokenAt < SPEECH_COOLDOWN_MS) return;
-  const key = `${newItem.label}:${newItem.position}`;
-  speakResult(newItem);
+  const key = keyFor(newItem);
+  const track = personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === newItem);
+  if (track) say(`Person ${track.id} at ${newItem.clock} o'clock in camera view. ${track.motion}.`);
+  else speakResult(newItem);
   spokenAt.set(key, now);
   lastSpokenAt = now;
 }
@@ -320,16 +328,20 @@ function drawLiveDetections(items, imageWidth, imageHeight) {
     const [x1, y1, x2, y2] = item.box;
     const x = offsetX + x1 * scale;
     const y = offsetY + y1 * scale;
-    const focused = backMode && personTracks.tracks.some((track) => track.id === focusedId && track.missed === 0 && track.item === item);
+    const track = personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === item);
+    const focused = backMode && track?.id === focusedId;
     ctx.strokeStyle = focused ? "#ffcb82" : "#86dcc8";
     ctx.lineWidth = focused ? 4 : 2;
     ctx.strokeRect(x, y, (x2 - x1) * scale, (y2 - y1) * scale);
-    const label = `${item.label} ${Math.round(item.confidence * 100)}%`;
+    const label = track
+      ? `person #${track.id} · ${track.motion} · ${Math.round(item.confidence * 100)}%`
+      : `${item.label} ${Math.round(item.confidence * 100)}%`;
     const labelY = y >= fontSize + 10 ? y - fontSize - 9 : y;
+    const safeLabelY = labelY < 65 ? Math.max(65, y + 6) : labelY;
     ctx.fillStyle = "#0b1619";
-    ctx.fillRect(x, labelY, ctx.measureText(label).width + 12, fontSize + 9);
+    ctx.fillRect(x, safeLabelY, Math.min(ctx.measureText(label).width + 12, rect.width - x), fontSize + 9);
     ctx.fillStyle = "#e8eefb";
-    ctx.fillText(label, x + 6, labelY + fontSize);
+    ctx.fillText(label, x + 6, safeLabelY + fontSize, rect.width - x - 12);
   }
 }
 
@@ -366,7 +378,7 @@ async function analyzeFrame(isLive = false) {
 
     const items = data.observations.sort((a, b) => b.confidence - a.confidence);
     if (isLive) {
-      if (backMode) processBackMode(items, data.width, data.height);
+      processPersonTracks(items, data.width, data.height);
       drawLiveDetections(items, data.width, data.height);
       if (!backMode) speakLiveResult(items);
     } else {
@@ -377,7 +389,10 @@ async function analyzeFrame(isLive = false) {
       : `No objects found · ${data.inference_ms} ms server processing`);
     for (const item of items.slice(0, 12)) {
       const row = document.createElement("li");
-      row.textContent = `${item.label} · ${item.position} (${item.clock} o'clock) · ${Math.round(item.confidence * 100)}%`;
+      const track = isLive && personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === item);
+      row.textContent = track
+        ? `person #${track.id} · ${track.motion} · ${item.position} (${item.clock} o'clock) · ${Math.round(item.confidence * 100)}%`
+        : `${item.label} · ${item.position} (${item.clock} o'clock) · ${Math.round(item.confidence * 100)}%`;
       list.append(row);
     }
     if (!isLive && items.length) speakResult(items[0]);
