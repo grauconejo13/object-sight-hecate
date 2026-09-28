@@ -14,8 +14,10 @@ h1 { font-size: clamp(3rem, 9vw, 5rem); line-height: 1; letter-spacing: -.06em; 
 .subtitle { max-width: 580px; color: #aebbd1; line-height: 1.5; }
 .viewer { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; max-height: 60vh; overflow: hidden; background: #080d18; border: 1px solid #314356; border-radius: 18px; }
 video { width: 100%; height: 100%; object-fit: contain; }
+#snapshot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #080d18; }
+#snapshot[hidden] { display: none; }
 .placeholder { position: absolute; max-width: 18em; padding: 16px; text-align: center; color: #adbad0; }
-.badge { position: absolute; left: 14px; top: 14px; padding: 8px 10px; border: 1px solid #547568; border-radius: 6px; background: #0b1619dc; color: #a5e9d9; font: 600 .68rem ui-monospace, monospace; letter-spacing: .06em; }
+.badge { position: absolute; left: 14px; top: 14px; max-width: calc(100% - 28px); padding: 8px 10px; border: 1px solid #547568; border-radius: 6px; background: #0b1619dc; color: #a5e9d9; font: 600 .68rem ui-monospace, monospace; letter-spacing: .06em; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 14px; }
 button { border: 1px solid #82cbbd; border-radius: 10px; padding: 12px 16px; background: #86dcc8; color: #08151a; font: inherit; font-weight: 700; cursor: pointer; }
 button:nth-child(2) { background: #212c42; color: #e8eefb; }

@@ -3,6 +3,7 @@ import "./style.css";
 const video = document.querySelector("#camera");
 const canvas = document.querySelector("#snapshot");
 const placeholder = document.querySelector("#camera-placeholder");
+const badge = document.querySelector(".badge");
 const startButton = document.querySelector("#start");
 const analyzeButton = document.querySelector("#analyze");
 const stopButton = document.querySelector("#stop");
@@ -29,6 +30,8 @@ function stopCamera() {
   stream = null;
   video.srcObject = null;
   placeholder.hidden = false;
+  canvas.hidden = true;
+  badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
   updateButtons();
 }
 
@@ -45,6 +48,8 @@ startButton.addEventListener("click", async () => {
     video.srcObject = stream;
     await video.play();
     placeholder.hidden = true;
+    canvas.hidden = true;
+    badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
     setStatus("Camera ready. Tap Analyze to send one frame.");
   } catch (error) {
     stopCamera();
@@ -66,6 +71,8 @@ function captureJpeg() {
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
   canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.hidden = false;
+  badge.textContent = "ANALYZING CAPTURED FRAME";
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => blob ? resolve(blob) : reject(new Error("Unable to capture JPEG.")),
@@ -75,9 +82,37 @@ function captureJpeg() {
   });
 }
 
+function drawDetections(items, imageWidth, imageHeight) {
+  const ctx = canvas.getContext("2d");
+  const scaleX = canvas.width / imageWidth;
+  const scaleY = canvas.height / imageHeight;
+  const fontSize = Math.max(13, Math.round(canvas.width / 55));
+  ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+  ctx.lineWidth = Math.max(2, Math.round(canvas.width / 400));
+
+  for (const item of items.slice(0, 12)) {
+    const [x1, y1, x2, y2] = item.box;
+    const x = x1 * scaleX;
+    const y = y1 * scaleY;
+    const width = (x2 - x1) * scaleX;
+    const height = (y2 - y1) * scaleY;
+    ctx.strokeStyle = "#86dcc8";
+    ctx.strokeRect(x, y, width, height);
+
+    const label = `${item.label} ${Math.round(item.confidence * 100)}%`;
+    const labelWidth = ctx.measureText(label).width + 12;
+    const labelY = y >= fontSize + 12 ? y - fontSize - 10 : y;
+    ctx.fillStyle = "#0b1619";
+    ctx.fillRect(x, labelY, labelWidth, fontSize + 10);
+    ctx.fillStyle = "#e8eefb";
+    ctx.fillText(label, x + 6, labelY + fontSize + 1);
+  }
+  badge.textContent = "LAST ANALYZED FRAME · TAP ANALYZE TO REFRESH";
+}
+
 analyzeButton.addEventListener("click", async () => {
   if (!apiBase) {
-    setStatus("Set VITE_API_URL to the Render service URL before deploying.");
+    setStatus("Set VITE_API_URL to your backend URL before deploying.");
     return;
   }
   busy = true;
@@ -95,6 +130,7 @@ analyzeButton.addEventListener("click", async () => {
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
 
     const items = data.observations.sort((a, b) => b.confidence - a.confidence);
+    drawDetections(items, data.width, data.height);
     setStatus(items.length
       ? `${items.length} observation(s) · ${data.inference_ms} ms server processing`
       : `No objects found · ${data.inference_ms} ms server processing`);
@@ -111,6 +147,8 @@ analyzeButton.addEventListener("click", async () => {
       ));
     }
   } catch (error) {
+    canvas.hidden = true;
+    badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
     setStatus(`Analysis failed: ${error.message}`);
   } finally {
     busy = false;
