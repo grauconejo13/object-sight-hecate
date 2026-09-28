@@ -23,7 +23,7 @@ class Detection:
 
 
 class ObjectDetector:
-    """Ultralytics detector/tracker that returns model-agnostic detection records."""
+    """Ultralytics detector/tracker returning model-agnostic detection records."""
 
     def __init__(self, model_name: str = "yolo11n.pt", confidence: float = 0.35) -> None:
         self.model = YOLO(model_name)
@@ -36,7 +36,19 @@ class ObjectDetector:
             conf=self.confidence,
             verbose=False,
         )[0]
+        return self._detections(result)
 
+    def detect(self, frame: np.ndarray) -> list[Detection]:
+        """Stateless inference for independent browser uploads."""
+        result = self.model.predict(
+            frame,
+            conf=self.confidence,
+            verbose=False,
+        )[0]
+        return self._detections(result)
+
+    @staticmethod
+    def _detections(result) -> list[Detection]:
         boxes = result.boxes
         if boxes is None or len(boxes) == 0:
             return []
