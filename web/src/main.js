@@ -6,6 +6,7 @@ const overlay = document.querySelector("#overlay");
 const placeholder = document.querySelector("#camera-placeholder");
 const badge = document.querySelector(".badge");
 const startButton = document.querySelector("#start");
+const switchButton = document.querySelector("#switch");
 const analyzeButton = document.querySelector("#analyze");
 const liveButton = document.querySelector("#live");
 const stopButton = document.querySelector("#stop");
@@ -15,6 +16,8 @@ const speakToggle = document.querySelector("#voice");
 const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 let stream = null;
+let cameraFacing = "environment";
+let switching = false;
 let busy = false;
 let live = false;
 let liveTimer = null;
@@ -26,12 +29,14 @@ function setStatus(message) {
 }
 
 function updateButtons() {
-  startButton.disabled = Boolean(stream) || busy;
-  analyzeButton.disabled = !stream || busy || live;
-  liveButton.disabled = !stream;
+  startButton.disabled = Boolean(stream) || busy || switching;
+  switchButton.disabled = !stream || switching;
+  switchButton.textContent = cameraFacing === "environment" ? "Use front camera" : "Use rear camera";
+  analyzeButton.disabled = !stream || busy || live || switching;
+  liveButton.disabled = !stream || switching;
   liveButton.textContent = live ? "Stop live analysis" : "Start live analysis";
   liveButton.setAttribute("aria-pressed", String(live));
-  stopButton.disabled = !stream;
+  stopButton.disabled = !stream || switching;
 }
 
 function clearOverlay() {
@@ -63,28 +68,71 @@ function stopCamera() {
   updateButtons();
 }
 
+async function openCamera(requireFacing = false) {
+  const nextStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { [requireFacing ? "exact" : "ideal"]: cameraFacing }, width: { ideal: 960 } },
+    audio: false,
+  });
+  stream = nextStream;
+  video.srcObject = nextStream;
+  try {
+    await video.play();
+  } catch (error) {
+    nextStream.getTracks().forEach((track) => track.stop());
+    stream = null;
+    video.srcObject = null;
+    throw error;
+  }
+  placeholder.hidden = true;
+  canvas.hidden = true;
+  clearOverlay();
+  badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
+}
+
 startButton.addEventListener("click", async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
     setStatus("Camera access needs HTTPS and a supported browser.");
     return;
   }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 960 } },
-      audio: false,
-    });
-    video.srcObject = stream;
-    await video.play();
-    placeholder.hidden = true;
-    canvas.hidden = true;
-    clearOverlay();
-    badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
-    setStatus("Camera ready. Tap Analyze to send one frame.");
+    await openCamera();
+    setStatus("Camera ready. Tap Analyze one frame or Start live analysis.");
   } catch (error) {
     stopCamera();
     setStatus(`Could not start camera: ${error.message}`);
   }
   updateButtons();
+});
+
+switchButton.addEventListener("click", async () => {
+  if (!stream || switching) return;
+  switching = true;
+  stopLiveAnalysis();
+  canvas.hidden = true;
+  clearOverlay();
+  list.replaceChildren();
+  const previousFacing = cameraFacing;
+  stream.getTracks().forEach((track) => track.stop());
+  stream = null;
+  video.srcObject = null;
+  cameraFacing = previousFacing === "environment" ? "user" : "environment";
+  updateButtons();
+  try {
+    await openCamera(true);
+    setStatus(`${cameraFacing === "user" ? "Front" : "Rear"} camera ready.`);
+  } catch (error) {
+    cameraFacing = previousFacing;
+    try {
+      await openCamera();
+      setStatus(`Could not switch cameras: ${error.message}`);
+    } catch (restoreError) {
+      stopCamera();
+      setStatus(`Could not open a camera: ${restoreError.message}`);
+    }
+  } finally {
+    switching = false;
+    updateButtons();
+  }
 });
 
 stopButton.addEventListener("click", () => {
