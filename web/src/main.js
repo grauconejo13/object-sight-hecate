@@ -23,6 +23,44 @@ let live = false;
 let liveTimer = null;
 let currentRequest = null;
 let lastLiveResult = null;
+const SPEECH_COOLDOWN_MS = 8000;
+const REPEAT_SPEECH_MS = 30000;
+const LIVE_SPEECH_CONFIDENCE = 0.55;
+let previousSpokenCandidates = new Set();
+let lastSpokenAt = 0;
+const spokenAt = new Map();
+
+function resetLiveSpeech() {
+  previousSpokenCandidates.clear();
+  spokenAt.clear();
+  lastSpokenAt = 0;
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
+function speakResult(item) {
+  if (!speakToggle.checked || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${item.label} ${item.position}.`));
+}
+
+function speakLiveResult(items) {
+  if (!speakToggle.checked || !("speechSynthesis" in window)) return;
+  const candidates = items.filter((item) => item.confidence >= LIVE_SPEECH_CONFIDENCE);
+  const current = new Set(candidates.map((item) => `${item.label}:${item.position}`));
+  const now = Date.now();
+  const newItem = candidates.find((item) => {
+    const key = `${item.label}:${item.position}`;
+    return previousSpokenCandidates.has(key) && now - (spokenAt.get(key) || 0) >= REPEAT_SPEECH_MS;
+  });
+  previousSpokenCandidates = current;
+  if (!newItem || now - lastSpokenAt < SPEECH_COOLDOWN_MS) return;
+  const key = `${newItem.label}:${newItem.position}`;
+  speakResult(newItem);
+  spokenAt.set(key, now);
+  lastSpokenAt = now;
+}
+
+speakToggle.addEventListener("change", resetLiveSpeech);
 
 function setStatus(message) {
   status.textContent = message;
@@ -46,6 +84,7 @@ function clearOverlay() {
 
 function stopLiveAnalysis() {
   live = false;
+  resetLiveSpeech();
   clearTimeout(liveTimer);
   liveTimer = null;
   currentRequest?.abort();
@@ -250,6 +289,7 @@ async function analyzeFrame(isLive = false) {
     const items = data.observations.sort((a, b) => b.confidence - a.confidence);
     if (isLive) {
       drawLiveDetections(items, data.width, data.height);
+      speakLiveResult(items);
     } else {
       drawDetections(items, data.width, data.height);
     }
@@ -261,13 +301,7 @@ async function analyzeFrame(isLive = false) {
       row.textContent = `${item.label} · ${item.position} (${item.clock} o'clock) · ${Math.round(item.confidence * 100)}%`;
       list.append(row);
     }
-    if (speakToggle.checked && items.length && "speechSynthesis" in window && !isLive) {
-      window.speechSynthesis.cancel();
-      const first = items[0];
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(
-        `${first.label} ${first.position}.`
-      ));
-    }
+    if (!isLive && items.length) speakResult(items[0]);
   } catch (error) {
     if (request.signal.aborted) return;
     canvas.hidden = true;
