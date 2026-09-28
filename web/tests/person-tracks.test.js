@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PersonTracks } from "../src/person-tracks.js";
+import { PersonTracks, viewSizeTrend } from "../src/person-tracks.js";
 
 const person = (x, confidence = 0.8) => ({
   label: "person", confidence, box: [x, 10, x + 20, 70], clock: x > 50 ? 3 : 9,
@@ -25,4 +25,11 @@ test("two nearby people retain separate screen tracks, and a missing focused per
 test("weak person guesses and unrelated objects never create person tracks", () => {
   const tracker = new PersonTracks();
   assert.deepEqual(tracker.update([person(15, 0.42), { ...person(70), label: "dog" }], 100, 100).visible, []);
+});
+
+test("size trend describes changes in the view without assigning real-world motion", () => {
+  assert.equal(viewSizeTrend([0.1, 0.1, 0.11]), "establishing");
+  assert.equal(viewSizeTrend([0.1, 0.11, 0.105, 0.1]), "steady in view");
+  assert.equal(viewSizeTrend([0.1, 0.1, 0.14, 0.15]), "larger in view");
+  assert.equal(viewSizeTrend([0.1, 0.1, 0.07, 0.07]), "smaller in view");
 });
