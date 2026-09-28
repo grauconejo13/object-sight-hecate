@@ -45,6 +45,7 @@ function stopLiveAnalysis() {
   liveTimer = null;
   currentRequest?.abort();
   currentRequest = null;
+  busy = false;
   clearOverlay();
   badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
   updateButtons();
