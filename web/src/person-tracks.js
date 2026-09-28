@@ -31,6 +31,7 @@ export class PersonTracks {
       best.missed = 0;
       best.samples.push(area);
       if (best.samples.length > 5) best.samples.shift();
+      best.motion = viewSizeTrend(best.samples);
       used.add(best.id);
     }
     for (const track of this.tracks) {
@@ -40,4 +41,15 @@ export class PersonTracks {
     this.tracks = this.tracks.filter((track) => track.missed < 3);
     return { visible: this.tracks.filter((track) => track.missed === 0), lost };
   }
+}
+
+// Screen size alone cannot distinguish a moving person from movement of the camera.
+export function viewSizeTrend(samples) {
+  if (samples.length < 4) return "establishing";
+  const before = (samples[0] + samples[1]) / 2;
+  const after = (samples.at(-1) + samples.at(-2)) / 2;
+  if (before <= 0) return "establishing";
+  if (after >= before * 1.25) return "larger in view";
+  if (after <= before * 0.8) return "smaller in view";
+  return "steady in view";
 }
