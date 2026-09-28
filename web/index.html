@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101523" />
+    <title>Hecate · Field Test</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <p class="eyebrow">OBJECT SIGHT / FIELD TEST</p>
+        <h1>Hecate<span class="star">✦</span></h1>
+        <p class="subtitle">Point the camera, capture a frame, and inspect what the vision model sees.</p>
+      </header>
+
+      <section class="viewer" aria-label="Camera preview">
+        <video id="camera" autoplay muted playsinline></video>
+        <canvas id="snapshot" hidden></canvas>
+        <div id="overlay" class="overlay" aria-hidden="true"></div>
+        <p id="camera-placeholder" class="placeholder">Camera is off. Tap Start camera to begin.</p>
+        <span class="badge">LIVE PREVIEW · NO AUTO UPLOAD</span>
+      </section>
+
+      <div class="actions">
+        <button id="start" type="button">Start camera</button>
+        <button id="analyze" type="button" disabled>Analyze one frame</button>
+        <button id="stop" type="button" disabled>Stop camera</button>
+      </div>
+      <label class="voice-control"><input id="voice" type="checkbox" /> Speak the first result</label>
+
+      <section class="results" aria-live="polite">
+        <h2>Observation</h2>
+        <p id="status">Ready when you are.</p>
+        <ul id="observations"></ul>
+        <p class="note">Positions describe the image from left to right. This prototype does not measure distance, detect approach, or assess danger.</p>
+      </section>
+      <footer>Hecate has your back · Experimental vision prototype</footer>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
