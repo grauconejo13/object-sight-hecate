@@ -12,6 +12,7 @@ const analyzeButton = document.querySelector("#analyze");
 const liveButton = document.querySelector("#live");
 const stopButton = document.querySelector("#stop");
 const status = document.querySelector("#status");
+const cameraStatus = document.querySelector("#camera-status");
 const list = document.querySelector("#observations");
 const speakToggle = document.querySelector("#voice");
 const backButton = document.querySelector("#back-mode");
@@ -142,20 +143,27 @@ speakToggle.addEventListener("change", resetLiveSpeech);
 
 function setStatus(message) {
   status.textContent = message;
+  cameraStatus.textContent = message;
 }
 
 function updateButtons() {
   startButton.disabled = Boolean(stream) || busy || switching;
   switchButton.disabled = !stream || switching;
   switchButton.textContent = cameraFacing === "environment" ? "Use front camera" : "Use rear camera";
+  switchButton.setAttribute("aria-label", switchButton.textContent);
+  switchButton.title = switchButton.textContent;
   analyzeButton.disabled = !stream || busy || live || switching;
   liveButton.disabled = !stream || switching;
   liveButton.textContent = live ? "Stop live analysis" : "Start live analysis";
   liveButton.setAttribute("aria-pressed", String(live));
+  liveButton.setAttribute("aria-label", liveButton.textContent);
+  liveButton.title = liveButton.textContent;
   stopButton.disabled = !stream || switching;
   backButton.disabled = switching;
   backButton.textContent = backMode ? "Stop Have my back" : "Have my back";
   backButton.setAttribute("aria-pressed", String(backMode));
+  backButton.setAttribute("aria-label", backButton.textContent);
+  backButton.title = backButton.textContent;
   focusButton.disabled = !backMode || !live || !personTracks.tracks.some((track) => track.missed === 0 && track.samples.length >= 2);
   listenButton.disabled = !SpeechRecognition || !stream || listening || switching;
 }

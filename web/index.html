@@ -20,25 +20,24 @@
         <canvas id="overlay" aria-hidden="true"></canvas>
         <p id="camera-placeholder" class="placeholder">Camera is off. Tap Start camera to begin.</p>
         <span class="badge">LIVE PREVIEW · NO AUTO UPLOAD</span>
-      </section>
+        <p id="camera-status" class="camera-status" aria-live="polite">Ready when you are.</p>
 
-      <div class="actions">
-        <button id="start" type="button">Start camera</button>
-        <button id="switch" type="button" disabled>Use front camera</button>
-        <button id="analyze" type="button" disabled>Analyze one frame</button>
-        <button id="live" type="button" disabled>Start live analysis</button>
-        <button id="stop" type="button" disabled>Stop camera</button>
-      </div>
-      <label class="voice-control"><input id="voice" type="checkbox" /> Speak detections (manual and live)</label>
+        <div class="camera-controls" aria-label="Camera controls">
+          <button id="start" class="control-button" type="button" aria-label="Start camera" title="Start camera">Start camera</button>
+          <button id="switch" class="control-button" type="button" disabled aria-label="Use front camera" title="Use front camera">Use front camera</button>
+          <button id="analyze" class="control-button" type="button" disabled aria-label="Analyze one frame" title="Analyze one frame">Analyze one frame</button>
+          <button id="live" class="control-button" type="button" disabled aria-label="Start live analysis" title="Start live analysis">Start live analysis</button>
+          <button id="stop" class="control-button" type="button" disabled aria-label="Stop camera" title="Stop camera">Stop camera</button>
+          <button id="back-mode" class="control-button" type="button" aria-pressed="false" aria-label="Have my back" title="Have my back">Have my back</button>
+          <button id="focus-person" class="control-button" type="button" disabled aria-label="Focus person" title="Focus person">Focus person</button>
+          <button id="listen-command" class="control-button" type="button" disabled aria-label="Tap to speak a command" title="Tap to speak a command">Tap to speak a command</button>
+          <label class="voice-control" title="Speak detections"><input id="voice" type="checkbox" /><span>Speak detections</span></label>
+        </div>
+      </section>
 
       <section class="back-controls" aria-label="Have my back controls">
         <h2>Have my back</h2>
         <p>Rear camera view · People first · Approximate screen tracking</p>
-        <div class="actions">
-          <button id="back-mode" type="button" aria-pressed="false">Have my back</button>
-          <button id="focus-person" type="button" disabled>Focus person</button>
-          <button id="listen-command" type="button" disabled>Tap to speak a command</button>
-        </div>
         <p id="back-status" role="status">Off. Camera positions are relative to the rear camera view.</p>
         <p class="note">Say “have my back”, “focus” or “track”, or “stop” after tapping the command button. Microphone access and browser speech recognition are optional. A highlighted box follows a person while visible; apparent size changes can also come from moving the camera. No measured distance or safety assessment.</p>
       </section>
