@@ -61,46 +61,74 @@ Use this file to track milestone progress, validation work, and the next concret
 - [x] Left / ahead / right spatial mapping behaves correctly.
 - [x] Baseline real-time performance is documented.
 - [x] Major failure cases are documented.
-- [x] Draft PR is ready to merge into `main`.
+- [x] Milestone 1 PR merged into `main`.
 
-**Milestone 1 status: Complete.**
+**Milestone 1 status: Complete and merged.**
 
 ---
 
 ## Milestone 2 — Temporal Spatial Awareness
 
-Planned after Milestone 1 passes local validation.
+### Implementation
 
-- [ ] Maintain short position history per track ID.
-- [ ] Estimate object movement direction.
-- [ ] Distinguish approaching vs receding motion where evidence supports it.
-- [ ] Detect meaningful crossing trajectories.
-- [ ] Convert temporal state into structured spatial events.
-- [ ] Add unit tests for trajectory calculations.
-- [ ] Add scenario tests for moving subjects.
-- [ ] Record latency and failure cases.
+- [x] Create `feature/temporal-spatial-awareness` branch.
+- [x] Maintain a bounded short history per track ID.
+- [x] Estimate horizontal motion from normalized x-position history.
+- [x] Add `moving left`, `moving right`, `steady`, and `unknown` states.
+- [x] Add an initial monocular approaching / receding heuristic from bounding-box area change.
+- [x] Keep stale track history bounded with an age limit.
+- [x] Display temporal motion state in the live overlay.
+- [x] Detect full left-third -> right-third and right-third -> left-third crossing trajectories.
+- [x] Convert temporal state into versioned structured spatial events.
+- [x] Add unit/scenario tests for temporal history, movement, range trend, track isolation, crossings, and event payloads.
+- [x] Document the Spatial Event v1 contract.
+
+### Important limitation
+
+The current `approaching` / `receding` state is **not a true distance measurement**. It uses bounding-box area growth/shrinkage as an early monocular heuristic. Camera/wearer motion, pose changes, partial occlusion, and detector-box jitter can all affect it. This must be validated and later combined with ego-motion or stronger depth evidence before it drives consequential alerts.
+
+Crossing detection is intentionally conservative: a track must traverse from the left third to the right third of the frame, or the reverse, within the retained short history. It is a trajectory cue, not an intent inference.
+
+### Local validation required
+
+- [ ] Pull / switch to `feature/temporal-spatial-awareness` locally.
+- [ ] Run the complete unit-test suite.
+- [ ] Confirm existing Milestone 1 behavior still works.
+- [ ] Move continuously left -> right and confirm temporal direction follows motion.
+- [ ] Move continuously right -> left and confirm temporal direction follows motion.
+- [ ] Stand mostly still and confirm motion settles to `steady` rather than churning.
+- [ ] Approach the stationary camera and observe `approaching` behavior.
+- [ ] Move away from the stationary camera and observe `receding` behavior.
+- [ ] Perform full left -> right and right -> left crossings and confirm crossing labels appear only for full traversals.
+- [ ] Record false motion / false range-trend / false-crossing transitions.
+- [ ] Record Milestone 2 FPS impact against the ~13.3 FPS Milestone 1 baseline.
+- [ ] Record temporal-processing latency and notable failure cases.
+
+### Remaining Milestone 2 work
+
+- [ ] Tune thresholds / smoothing only if live validation shows churn or missed motion.
+- [ ] Complete local validation above.
+- [ ] Mark the PR ready and merge after validation.
 
 Target progression:
 
 ```text
 track ID
    ↓
-position history
+short history
    ↓
-movement direction
+horizontal motion
    ↓
-approaching / receding
+initial range trend
    ↓
-trajectory
+crossing trajectory
    ↓
-spatial event
+structured spatial event
 ```
 
 ---
 
 ## Later Milestones — Not Started
-
-These are intentionally deferred so Milestone 1 stays small and testable.
 
 - [ ] Selective alert / relevance engine.
 - [ ] Directional audio and/or haptic cues.
@@ -116,4 +144,4 @@ These are intentionally deferred so Milestone 1 stays small and testable.
 
 ## Current next action
 
-Merge Milestone 1 when ready, then begin Milestone 2 with short per-track position history and movement-direction estimation before attempting approaching / receding classification.
+On the project laptop, switch to `feature/temporal-spatial-awareness`, pull the branch, run the full unit-test suite, then perform the live direction/range/crossing validation before tuning thresholds or merging Milestone 2.

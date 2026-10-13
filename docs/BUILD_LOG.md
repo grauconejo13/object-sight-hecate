@@ -4,6 +4,45 @@ Chronological record of meaningful Object-Sight Hecate build sessions.
 
 Use this file to capture what changed, what worked, what failed, and what should happen next.
 
+## 2026-09-15 — Milestone 2 started: temporal spatial awareness
+
+**Goal**
+
+- Move from single-frame spatial labels into short-term motion understanding.
+- Keep the first temporal slice simple enough to test before adding crossing trajectories, agentic decisions, or alerts.
+
+**Built / changed**
+
+- Merged Milestone 1 PR into `main`.
+- Created `feature/temporal-spatial-awareness`.
+- Added `TemporalTracker` with bounded per-track history.
+- Added normalized horizontal displacement estimation.
+- Added `moving left`, `moving right`, `steady`, and `unknown` states.
+- Added an initial `approaching` / `receding` heuristic based on tracked bounding-box area change.
+- Added stale-history pruning so disappeared tracks do not remain indefinitely.
+- Extended the live overlay with horizontal motion and range-trend text.
+- Added temporal unit tests covering first-sample behavior, untracked detections, left/right motion, steady motion, approaching/receding behavior, and isolated histories for multiple track IDs.
+
+**Important limitation**
+
+- The range trend is not a physical distance estimate. Bounding-box growth/shrinkage can result from real approach/recession, camera movement, pose change, occlusion, or detector-box jitter. It is intentionally treated as a provisional heuristic for live testing.
+
+**Validation still required**
+
+- Pull the new branch to the project laptop.
+- Run the complete unit-test suite.
+- Verify existing detection and 9 / 12 / 3 o'clock behavior did not regress.
+- Test continuous left-to-right and right-to-left movement.
+- Test a mostly stationary subject for false motion churn.
+- Approach and recede from a stationary camera and observe range-trend behavior.
+- Record false transitions and FPS impact before tuning thresholds.
+
+**Next step**
+
+- Validate the first temporal slice locally.
+- Tune only from observed behavior rather than guessing thresholds.
+- After direction/range trends are stable enough, add meaningful crossing-trajectory detection and structured spatial events.
+
 ## 2026-09-15 — Milestone 1 completed: single-camera perception
 
 **Goal**
@@ -32,16 +71,14 @@ Use this file to capture what changed, what worked, what failed, and what should
 
 **What worked**
 
-- Repository now has a complete code path from frame source -> detection/tracking -> spatial observation -> visual overlay.
+- Repository has a complete code path from frame source -> detection/tracking -> spatial observation -> visual overlay.
 - OpenCV 5 is explicitly required at runtime so an accidental OpenCV 4 environment fails clearly.
-- Local repository sync and branch setup completed successfully.
 - Python 3.11.5 virtual environment activated successfully.
-- `pip` upgraded successfully before dependency installation.
 - OpenCV 5.0.0 launched successfully with the webcam at 1280x720.
 - YOLO loaded and produced live detections with track IDs.
 - Center, left, and right movement correctly mapped to `12`, `9`, and `3 o'clock` respectively.
 - Track IDs can change after a subject fully leaves the camera view and returns; this is acceptable for the current short-term tracking baseline.
-- All three current spatial mapping unit tests passed locally.
+- All three spatial mapping unit tests passed locally.
 - Application shutdown controls work cleanly without needing Ctrl+C.
 
 **Problems / failures**
@@ -51,7 +88,6 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Object classification is sensitive to pose and available COCO classes: a soda/pop can may be labeled `cell phone`, a flat book may be missed while an open book is detected, and a plant/pot can alternate between `cup` and `potted plant`.
 - One camera run emitted `WARNING not enough matching points` from tracker motion compensation. This did not prevent later clean launches and exits, but remains a useful tracker failure case to monitor.
 - Re-identification after a subject fully leaves the frame is not supported in Milestone 1.
-- No trajectory, distance, relevance scoring, selective alerts, or AWS behavior exists yet.
 
 **Evidence / measurements**
 
@@ -59,21 +95,14 @@ Use this file to capture what changed, what worked, what failed, and what should
 - Runtime OpenCV version observed: `5.0.0`.
 - First webcam run resolution: `1280x720`.
 - Initial observed performance: approximately `13.3 FPS`; live FPS fluctuates during movement.
-- Live detections visibly included confidence scores, track IDs, and wearer-relative clock-position hints.
-- Spatial direction mapping passed the first manual movement test.
+- Spatial direction mapping passed manual movement validation.
 - Unit tests: `3 passed`, runtime `0.001s`.
 - Two final camera launches exited cleanly back to PowerShell without exception using in-app controls.
 - Failure cases are recorded in `docs/PERFORMANCE.md` for later evaluation.
 
 **Milestone result**
 
-Milestone 1 is complete and the feature branch is ready for merge into `main`.
-
-**Next step**
-
-- Merge Milestone 1 when ready.
-- Begin Milestone 2 with short per-track position history.
-- Add movement-direction estimation before attempting approaching / receding classification.
+Milestone 1 completed and was merged into `main` before Milestone 2 began.
 
 ## 2026-09-14 — Repository initialized
 
