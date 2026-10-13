@@ -1,5 +1,6 @@
 import "./style.css";
 import { PersonTracks } from "./person-tracks.js";
+import { createFieldEvidenceLog } from "./field-evidence.js";
 
 const video = document.querySelector("#camera");
 const canvas = document.querySelector("#snapshot");
@@ -19,6 +20,8 @@ const backButton = document.querySelector("#back-mode");
 const focusButton = document.querySelector("#focus-person");
 const listenButton = document.querySelector("#listen-command");
 const backStatus = document.querySelector("#back-status");
+const exportEvidenceButton = document.querySelector("#export-evidence");
+const evidenceCount = document.querySelector("#evidence-count");
 const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 let stream = null;
@@ -36,6 +39,7 @@ let previousSpokenCandidates = new Set();
 let lastSpokenAt = 0;
 const spokenAt = new Map();
 const personTracks = new PersonTracks();
+const evidenceLog = createFieldEvidenceLog();
 let backMode = false;
 let focusedId = null;
 let listening = false;
@@ -146,6 +150,26 @@ function setStatus(message) {
   cameraStatus.textContent = message;
 }
 
+function updateEvidenceExport() {
+  const count = evidenceLog.count;
+  const label = count === 1 ? "1 field-test entry" : `${count} field-test entries`;
+  evidenceCount.textContent = `${label} recorded locally; download when ready.`;
+  exportEvidenceButton.disabled = count === 0;
+  exportEvidenceButton.setAttribute("aria-label", `Download ${label}`);
+  exportEvidenceButton.title = `Download ${label}`;
+}
+
+function downloadEvidence() {
+  if (!evidenceLog.count) return;
+  const blob = new Blob([JSON.stringify(evidenceLog.exportPayload(), null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `hecate-field-evidence-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  setStatus(`Downloaded ${evidenceLog.count} field-test entr${evidenceLog.count === 1 ? "y" : "ies"}.`);
+}
+
 function updateButtons() {
   startButton.disabled = Boolean(stream) || busy || switching;
   switchButton.disabled = !stream || switching;
@@ -166,6 +190,7 @@ function updateButtons() {
   backButton.title = backButton.textContent;
   focusButton.disabled = !backMode || !live || !personTracks.tracks.some((track) => track.missed === 0 && track.samples.length >= 2);
   listenButton.disabled = !SpeechRecognition || !stream || listening || switching;
+  exportEvidenceButton.disabled = evidenceLog.count === 0;
 }
 
 function clearOverlay() {
@@ -385,6 +410,11 @@ async function analyzeFrame(isLive = false) {
     if (request.signal.aborted || !stream) return;
 
     const items = data.observations.sort((a, b) => b.confidence - a.confidence);
+    evidenceLog.recordAnalysis({
+      mode: backMode ? "have-my-back" : isLive ? "live" : "single-frame",
+      result: { ...data, observations: items },
+    });
+    updateEvidenceExport();
     if (isLive) {
       processPersonTracks(items, data.width, data.height);
       drawLiveDetections(items, data.width, data.height);
@@ -473,6 +503,7 @@ backButton.addEventListener("click", async () => {
 });
 
 focusButton.addEventListener("click", focusPerson);
+exportEvidenceButton.addEventListener("click", downloadEvidence);
 
 if (!SpeechRecognition) {
   listenButton.title = "Voice commands are unavailable in this browser. Use the buttons instead.";
@@ -503,4 +534,5 @@ listenButton.addEventListener("click", () => {
   }
 });
 
+updateEvidenceExport();
 window.addEventListener("pagehide", stopCamera);
