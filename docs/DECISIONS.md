@@ -34,6 +34,25 @@ The system may describe observable movement, location, distance, trajectory, or 
 
 Prove the perception and tracking pipeline with one camera before adding a multi-camera rig.
 
+## D-005 — Public Nebius x NVIDIA hackathon entry
+
+**Date:** 2026-10-27  
+**Status:** Accepted (supersedes the private-repository part of D-001)
+
+**Decision**
+
+Submit Hecate to the Nebius Global AI Hackathon with NVIDIA. The repository becomes public under the MIT License, and the cloud component is NVIDIA Nemotron on Nebius Token Factory (scene briefings) instead of the previously planned AWS layer.
+
+**Why**
+
+The hackathon requires a public, open-source repository and a project that runs on Nebius Token Factory or AI Cloud with an NVIDIA open model. Nemotron fits Hecate's existing plan for a cloud layer that summarises structured evidence without sitting on the time-critical alert path.
+
+**Consequences / tradeoffs**
+
+- Time-critical alerts stay local; Nemotron is on demand and its replies pass a local guard.
+- Only structured facts are sent to Nebius, never images.
+- Ultralytics YOLO is AGPL-3.0; Hecate's own code is MIT and the README says so.
+
 ## Decision Template
 
 ### D-XXX — Title

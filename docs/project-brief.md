@@ -89,5 +89,5 @@ The competition build should prove a narrow end-to-end experience rather than an
 2. Tracking and temporal state.
 3. User-relative spatial awareness.
 4. Selective alerts based on meaningful change.
-5. A substantive AWS component where visual evidence influences a later decision, re-check, or follow-up action.
+5. A substantive NVIDIA Nemotron component on Nebius Token Factory that summarises structured visual evidence for the wearer, without sitting on the time-critical alert path.
 6. Evaluation, failure cases, and limitations.

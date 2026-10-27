@@ -1,133 +1,138 @@
 # Object-Sight Hecate
 
-**Object-Sight Hecate** is an experimental computer-vision project exploring **artificial peripheral awareness**: an extra set of eyes for people moving through environments where attention, visibility, or familiarity may be limited.
+**Object-Sight Hecate** explores **artificial peripheral awareness**: an extra set of eyes for people walking, running, or travelling alone where attention or visibility is limited. A small camera worn facing behind you watches the space you can't, and your phone tells you, briefly and calmly, what is there.
 
-This repository is the private competition build for the **OpenCV AI Competition 2026, powered by AWS**.
+Built for the **Nebius Global AI Hackathon with NVIDIA** (Physical AI track). It runs **NVIDIA Nemotron on Nebius Token Factory** to turn what the camera is tracking into one spoken sentence.
 
-## Core Idea
+## What it does
 
-Object-Sight should not simply announce everything a camera detects. The goal is to maintain a lightweight spatial understanding of the environment around the user and surface only meaningful changes.
+- **Wearable rear camera.** An ESP32-S3-EYE with a wide lens, powered from a pocket power bank and joined to your phone's hotspot, pushes frames to the Hecate backend.
+- **Local perception.** OpenCV 5 and Ultralytics YOLO detect and track objects; each one gets a direction around the wearer as a clock position (behind you is 6 o'clock).
+- **Local alerts, never waiting on the cloud.** Conservative rules speak only meaningful changes: a person appearing behind you, something growing larger in view, something crossing behind you.
+- **Ask Hecate (✦): a scene briefing by NVIDIA Nemotron.** On request, Nemotron on Nebius Token Factory summarises the tracked scene as one cautious sentence, for example *"Rear view: a person at 6 o'clock and a car at 7 o'clock."*
+- **Phone app.** Switch between the phone camera and the ESP32 cam, see detections, hear alerts and briefings, and change the camera's settings remotely.
 
-Example future alerts:
+The system describes observable position and change. It never infers identity, intent, emotion, or danger, and it does not claim distances it cannot measure.
 
-- `Cyclist approaching, 5 o'clock.`
-- `Movement closing from rear-left.`
-- `Obstacle ahead.`
+## How NVIDIA Nemotron and Nebius Token Factory are used
 
-The system focuses on observable position, motion, trajectory, and spatial relationships rather than trying to infer a person's identity, intentions, trustworthiness, or emotions.
+The hackathon requires every project to run on Nebius Token Factory or Nebius AI Cloud and to use at least one NVIDIA open model. Hecate meets this with **`nvidia/nemotron-3-super-120b-a12b` served by Nebius Token Factory** through its OpenAI-compatible API (`https://api.tokenfactory.nebius.com/v1`). **A Nebius API key (`NEBIUS_API_KEY`) is required to run Hecate as submitted.** Without one, the app keeps working, but every briefing is labelled "Nebius unavailable · local summary" so it is always clear which you are hearing.
 
-## Candidate Scenarios
+**Why a language model here.** YOLO answers "what is in this frame and where is each box" in milliseconds. A person walking with the phone in a pocket needs something else: one prioritised sentence covering the whole scene and what just changed. Nemotron does that aggregation. It groups repeats ("two people at 6 o'clock"), orders people before vehicles before objects, and folds in the last 30 seconds of local alerts.
 
-- Walking at night in a city
-- Traveling alone in an unfamiliar area
-- Jogging or running
-- Hiking and trail navigation
-- Low-visibility environments
-- Accessibility assistance
+**What Nemotron receives.** Structured facts only: object labels, clock directions, whether each looks larger or smaller in view, and recent alerts. No images, bounding boxes, or track IDs leave the laptop.
 
-The hackathon prototype will demonstrate a small subset well rather than claim to solve every scenario.
+**How its output is kept honest.** A local guard checks every reply against those facts and discards it if it:
 
-## Hecate
+- names an object that is not in the facts (a "person" or "car" that YOLO did not report)
+- places an object at a direction, or claims a count, the facts do not support
+- claims identity, intent, danger, or distance
 
-**Hecate** is the working name for the project's multi-view perception architecture, inspired by the goddess associated with crossroads, night, thresholds, and later triple-form imagery.
+A discarded reply is replaced by a deterministic local summary, and the app says so. Configuration, API, and the full guard: [docs/NEBIUS.md](docs/NEBIUS.md).
 
-A future physical implementation may use three wide-angle cameras to provide complementary views around the wearer. Custom hardware is **not required** for the initial prototype.
-
-## Planned Progression
+## Architecture
 
 ```text
-camera input
-    ↓
-OpenCV perception
-    ↓
-object detection / tracking
-    ↓
-spatial relationships + trajectories
-    ↓
-relevance / awareness engine
-    ↓
-quiet | haptic cue | directional audio | follow-up action
+ESP32-S3-EYE (worn facing back) ──HTTPS + device token──┐
+Phone camera (browser) ──────────── JPEG ───────────────┤
+                                                        ▼
+                              FastAPI backend on the laptop
+             OpenCV 5 + YOLO ─▶ tracking ─▶ clock direction ─▶ local alert rules ──▶ spoken alerts (fast path)
+                                    │
+                                    └─ structured facts ─▶ NVIDIA Nemotron on Nebius Token Factory
+                                                              │
+                                                     local guard ─▶ Ask Hecate briefing (on request)
+                                                        ▲
+                     Phone web app (Vite, on Vercel) ───┘ over Tailscale
 ```
 
-Later stages may add multi-camera fusion, adaptive low-light capture, pose/activity cues, depth estimation, and an AWS-backed agentic layer.
+## Setup
 
-## Design Principles
+Requirements: Python 3.11+, Node 20+, a [Nebius Token Factory](https://tokenfactory.nebius.com/) API key. The ESP32 camera and Tailscale are needed only for the wearable mode.
 
-- Awareness sessions are deliberately started and stopped by the user.
-- Silence is a valid output; do not narrate everything.
-- Prefer local processing for routine perception where practical.
-- Avoid continuous video storage by default.
-- Do not require facial recognition.
-- Do not infer criminal intent, personality, trustworthiness, or emotion from appearance.
-- Describe observable spatial behavior instead.
-- Time-critical safety alerts should not depend on a remote AI round trip.
-- Human judgment remains responsible for consequential decisions.
-
-## Initial Stack
-
-- Python
-- OpenCV 5
-- Ultralytics YOLO for the first detector/tracker adapter
-- NVIDIA Nemotron on Nebius Token Factory for optional scene briefings
-- AWS services where they add meaningful agentic or cloud capability
-
-Dependencies are pinned as the competition build stabilizes.
-
-## First Prototype
-
-The first vertical slice now supports:
-
-- OpenCV 5 camera or video input
-- object detection and persistent track IDs
-- wearer-relative left / ahead / right positioning
-- initial clock-direction hints (`9`, `12`, `3`)
-- on-screen detection, confidence, track ID, OpenCV version, and FPS overlays
-
-### Run locally
+**1. Backend (laptop)**
 
 ```bash
 python -m venv .venv
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1   macOS/Linux: source .venv/bin/activate
+pip install -r requirements-web.txt
 ```
 
-Activate the environment, then:
+Set keys in the shell that starts the server (never in source or `web/.env*`):
+
+```powershell
+$env:NEBIUS_API_KEY = "your-token-factory-key"       # required for Nemotron briefings
+$env:HECATE_DEVICE_TOKEN = "long-random-token"        # only for the ESP32 cam
+$env:FRONTEND_ORIGINS = "https://your-app.vercel.app" # only when the app is hosted
+uvicorn object_sight_hecate.web_api:app --host 127.0.0.1 --port 8000
+```
+
+Check Nemotron is configured: `curl http://127.0.0.1:8000/v1/briefing/status` should show `"available": true`.
+
+**2. Phone web app**
+
+```bash
+cd web
+cp .env.example .env.local   # sets VITE_API_URL, the backend URL only
+npm install
+npm run dev
+```
+
+Deploying the app to Vercel and reaching the backend from a phone: [docs/FIELD_TEST_DEPLOY.md](docs/FIELD_TEST_DEPLOY.md).
+
+**3. Wearable ESP32 camera (optional)**
+
+Firmware, hotspot setup, and the Tailscale Funnel configuration that exposes only the upload path: [docs/ESP32_CAMERA.md](docs/ESP32_CAMERA.md).
+
+**4. Desktop viewer (optional)**
 
 ```bash
 pip install -r requirements.txt
-python main.py --source 0
+python main.py --source 0      # webcam; or a video path, or an ESP32 stream URL
 ```
 
-Press `q` or `Esc` to stop. A video path can be supplied instead of camera index `0`.
-
-Run the current unit tests with:
+**Tests**
 
 ```bash
 python -m unittest discover -s tests
+cd web && node --test tests/*.test.js
 ```
 
-The first model may download automatically on initial use.
+The Token Factory client is mocked in tests; no test calls the real API.
 
-## ESP32 and phone field tests
+## Built during the hackathon
 
-- **Wearable ESP32 cam:** an ESP32-S3-EYE worn facing behind you, on a power bank and your phone's hotspot, pushes frames to the backend. The phone app switches between **Phone** and **ESP32 cam**, shows the feed with rear-relative clock positions (5 / 6 / 7 o'clock), speaks alerts, and edits the camera's settings remotely. See [ESP32 camera setup](docs/ESP32_CAMERA.md).
-- The desktop detector can still read the ESP32 CameraWebServer stream on the same Wi-Fi for bench tests.
-- A separate phone-camera preview is ready for Vercel (frontend) and Render (analysis API). It sends one image only when you tap Analyze. See [field test deployment](docs/FIELD_TEST_DEPLOY.md).
+Hecate existed before the submission period as a single-camera prototype: OpenCV 5 + YOLO detection and tracking, clock-direction mapping, temporal motion events, and a phone field-test page (through PR #13). Added for this submission:
 
-These are input and testing paths for the same perception core. Remote cloud inference is experimental and is not used for time-critical alerts. The final OpenCV AI Competition entry still needs a meaningful AWS component.
+- **NVIDIA Nemotron scene briefing on Nebius Token Factory** with object-grounding guardrails, local fallback, and visible provenance in the app (PR #15).
+- **Wearable ESP32 camera mode:** push firmware, token-protected ingest, server-side tracking, rear-facing clock directions, local alert rules, and the phone app's camera toggle and remote settings (PR #14).
 
-## Scene briefing: NVIDIA Nemotron on Nebius Token Factory
+## Design principles
 
-Tap **Ask Hecate** (✦) and Hecate speaks one cautious sentence about what it is tracking, e.g. *"Rear view: a person at 6 o'clock and a car at 7 o'clock."*
+- Awareness sessions are started and stopped by the user.
+- Silence is a valid output; do not narrate everything.
+- Time-critical alerts run locally and never wait on a cloud round trip.
+- No continuous video storage: only the newest frame is held in memory.
+- No facial recognition; no inference of identity, intent, trustworthiness, or emotion.
+- Describe observable position and change; do not claim distance from a single camera.
+- Human judgment remains responsible for consequential decisions.
 
-- **How Nemotron is used:** the backend sends Nemotron (`nvidia/nemotron-3-super-120b-a12b` by default) the structured scene from YOLO and tracking (labels, clock directions, view-size trends, and the last 30 s of local alerts) through Token Factory's OpenAI-compatible API. Nemotron prioritises and groups it into one sentence that can be taken in by ear. No images or boxes leave the laptop.
-- **Why it matters:** detections are per-box and per-frame; a person walking needs one prioritised summary of the scene. That aggregation is the model's job here.
-- **What stays local:** detection, tracking and the time-critical spoken alerts never wait on the cloud.
-- **Guardrails:** every reply is checked locally. Claims of identity, intent, danger or distance, or directions not in the data, are discarded for a deterministic local summary. The app shows which one you are hearing, and when Nebius is unavailable.
-- **Setup:** set `NEBIUS_API_KEY` on the backend. Details in [docs/NEBIUS.md](docs/NEBIUS.md).
+## Limitations
 
-## Status
+- "Larger in view" is a bounding-box size cue from one camera. Camera movement, pose, and occlusion affect it; it is not a distance measurement.
+- Detection quality drops in low light and with motion blur from walking.
+- The backend runs on a laptop reached over Tailscale; latency depends on the phone's mobile connection.
+- Track IDs reset when an object leaves the frame.
 
-🕷️ **Milestone 1 in progress — single-camera perception**
+## Roadmap
 
-The current goal is deliberately small: verify reliable single-camera capture, detection/tracking, and basic wearer-relative positioning before adding trajectory reasoning, selective alerts, multi-camera fusion, or AWS orchestration.
+- **Hecate:** three wide-angle cameras for full surround awareness, the origin of the name (the goddess of crossroads and thresholds, often shown in triple form).
+- Directional audio and haptic cues.
+- Low-light capture and depth or ego-motion cues to replace the size heuristic.
+- A repeatable scenario suite to measure alert precision.
 
-See [`docs/project-brief.md`](docs/project-brief.md), [`docs/architecture.md`](docs/architecture.md), and [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md).
+More detail: [docs/project-brief.md](docs/project-brief.md), [docs/architecture.md](docs/architecture.md), [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
+
+## License
+
+Hecate's own code is released under the [MIT License](LICENSE). Dependencies keep their own licenses; notably, Ultralytics YOLO is licensed under AGPL-3.0, and using or distributing Hecate together with it is subject to that license.

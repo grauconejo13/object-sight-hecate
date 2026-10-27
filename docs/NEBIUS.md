@@ -23,6 +23,10 @@ What Nemotron never receives: images, bounding boxes, or track IDs. It gets labe
 
 The model is instructed to stay cautious, and a local guard **checks every reply before it is shown or spoken**. The reply is discarded, and a deterministic local summary is used instead, if it:
 
+- names an object that is not in the facts: any YOLO class, common synonym ("pedestrian", "vehicle", "bike"), or a scene noun YOLO cannot detect ("tree", "scooter"). A valid direction is not enough: "a person at 6 o'clock" is rejected unless a person is in the facts
+- places an object at a direction the facts do not give it. A direction applies to every object named before it in the clause, so "a person and a car at 7 o'clock" fails if the person is at 6
+- gives a direction without naming a detected object ("something at 6 o'clock")
+- claims more of an object than the facts contain, overall or at that direction ("two people at 6 o'clock" with one there)
 - describes identity, gender, age, emotion, intent, or behaviour ("man", "following", "watching")
 - makes a safety judgement ("dangerous", "safe", "suspicious", "threat")
 - claims distance or motion toward the wearer ("near", "close", "approaching", "3 m")
@@ -73,4 +77,4 @@ Identical scenes within 10 s are served from a small cache so repeated taps do n
 
 ## Tests
 
-`tests/test_briefing.py` mocks the Token Factory transport and covers: request shape (URL, bearer key, model, no images or boxes), guard rejections, reasoning-tag stripping, HTTP and network failures, caching, the offline camera path, and the API endpoints. `web/tests/briefing.test.js` covers the request payload and the provenance tags. No test calls the real API.
+`tests/test_briefing.py` mocks the Token Factory transport and covers: request shape (URL, bearer key, model, no images or boxes), guard rejections (including invented objects at valid directions, wrong directions, inflated counts, and a check that every local summary passes the guard), reasoning-tag stripping, HTTP and network failures, caching, the offline camera path, and the API endpoints. `web/tests/briefing.test.js` covers the request payload and the provenance tags. No test calls the real API.
