@@ -1,33 +1,125 @@
-# ESP32-S3 CameraWebServer input
+# Wearable ESP32 camera
 
-The existing Hecate Python detector runs on the laptop. The ESP32-S3 serves camera frames over Wi-Fi; it does not run the YOLO model.
+The ESP32-S3-EYE is worn facing **behind** you, powered from a power bank over USB-C, and joined to **your phone's hotspot**. It runs no AI. It pushes JPEG frames to the Hecate backend on the laptop, which runs detection, tracking and alert rules. The phone app shows the feed and speaks alerts.
 
-## Run on the same Wi-Fi network
+```text
+ESP32 cam ──HTTPS POST frame + token──▶ Tailscale Funnel :8443 (/v1/device only)
+   (phone hotspot, cell data)                     │
+                                                  ▼
+                                   FastAPI on the laptop (YOLO + tracking + alerts)
+                                                  ▲
+Phone app ──tailnet only (:443)── GET /v1/esp32/latest, frame.jpg, PUT settings
+```
 
-1. Flash Espressif's CameraWebServer example with the camera board model matching your hardware (the current sketch uses `CAMERA_MODEL_ESP32S3_EYE`). Enter your Wi-Fi credentials in the sketch locally; never commit them.
-2. Open Serial Monitor and record the board's IP address, for example `192.168.1.25`. Test `http://192.168.1.25/` in a browser.
-3. From the laptop, try continuous MJPEG first:
+Why push: on the hotspot nothing can connect *to* the ESP32, it cannot run Tailscale, and an HTTPS page cannot load a plain-HTTP camera. Pushing avoids all three. Settings changed in the app travel back to the camera in the response headers of its next upload, so the camera never needs an open port.
 
-   ```powershell
-   python main.py --source "http://192.168.1.25:81/stream"
-   ```
+## 1. Backend (laptop, PowerShell)
 
-4. If OpenCV cannot open or reliably read the stream, use the JPEG snapshot endpoint:
+Generate a device token once and keep it out of the repository:
 
-   ```powershell
-   python main.py --source "http://192.168.1.25/capture"
-   ```
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(24))"
+```
 
-The snapshot input requests and decodes one JPEG at a time with a three-second network timeout and an 8 MiB response limit. The stream path uses OpenCV's existing `VideoCapture` support. Both sources feed the same detector and on-screen overlay. The ESP32 chooses its own capture size, so the laptop's usual 1280x720 webcam request does not control its resolution.
+Start the API with it:
 
-Press `q` or `Esc` to close the display. Test with steady indoor light first, then compare the original and wide-angle lens. Check whether left/center/right in the image matches the direction you intend to give the wearer; a camera mounted facing backward will need a deliberate orientation convention before spoken alerts are trustworthy.
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:HECATE_DEVICE_TOKEN = "paste-the-token"
+$env:FRONTEND_ORIGINS = "https://your-hecate-site.vercel.app"
+uvicorn object_sight_hecate.web_api:app --host 127.0.0.1 --port 8000
+```
+
+Without `HECATE_DEVICE_TOKEN` (16+ characters) the device endpoints refuse every upload.
+
+## 2. Tailscale: keep the app private, expose only the upload path
+
+Your existing `tailscale serve` on port 443 stays tailnet-only; that is what `VITE_API_URL` on Vercel points at. Add a **separate** Funnel on port 8443 that mounts only `/v1/device`:
+
+```powershell
+tailscale funnel --bg --https=8443 --set-path=/v1/device http://127.0.0.1:8000/v1/device
+tailscale funnel status
+```
+
+The first time, Tailscale may print a link to enable Funnel for your tailnet; open it, approve, and rerun.
+
+**Check the exposure before going outside.** On the phone, turn the Tailscale VPN **off** and Wi-Fi **off** (cell data only), then open:
+
+| URL | Expected |
+| --- | --- |
+| `https://<laptop>.<tailnet>.ts.net:8443/v1/device/settings` | `401 Invalid device token` (reachable, protected) |
+| `https://<laptop>.<tailnet>.ts.net:8443/health` | 404 (nothing else mounted) |
+| `https://<laptop>.<tailnet>.ts.net/v1/esp32/latest` | does not load (tailnet-only) |
+
+If `/v1/device/settings` returns 404 instead of 401, your Tailscale version forwards the full path: run `tailscale funnel --https=8443 --set-path=/v1/device off`, then repeat the funnel command with the target `http://127.0.0.1:8000` and check again.
+
+If `/health` or `/v1/esp32/latest` loads publicly, run `tailscale funnel reset`, check `tailscale funnel status`, and redo the command above. Do not put the whole port 443 on Funnel: that would make the camera feed and `/v1/analyze` public.
+
+Turn Tailscale back on for the phone afterwards; the app needs it.
+
+## 3. Flash the camera
+
+1. Arduino IDE with the **esp32 by Espressif** boards package.
+2. Open `firmware/hecate_esp32_push/hecate_esp32_push.ino`.
+3. Copy `secrets.example.h` to `secrets.h` in the same folder and fill in the hotspot name and password, `HECATE_BASE_URL` (`https://<laptop>.<tailnet>.ts.net:8443`, no trailing slash) and the same token. `secrets.h` is gitignored.
+4. Tools: Board **ESP32S3 Dev Module**, PSRAM **OPI PSRAM**, a partition scheme with at least 3 MB app, USB CDC On Boot **Enabled** (to see logs over USB-C).
+5. Upload, open Serial Monitor at 115200. Expected: `Connected to <hotspot>`, then `25 frames sent, …` every so often.
+
+`root_ca.h` holds the public Let's Encrypt roots, so the camera verifies it is talking to your Funnel URL before sending the token.
+
+The pin map is the same `CAMERA_MODEL_ESP32S3_EYE` one your CameraWebServer test used. The sketch has not been compiled in CI; if the IDE reports an API mismatch, note the core version (Tools > Board > Boards Manager) and the error.
+
+## 4. Hotspot
+
+- The ESP32 only joins **2.4 GHz**. iPhone: Settings > Personal Hotspot > turn on **Maximize Compatibility**. Android: set the hotspot band to 2.4 GHz.
+- Keep the phone's hotspot screen or settings open the first time so the ESP32 joins.
+- Optional: put home Wi-Fi in `WIFI_SSID_2` for bench testing; the camera uses whichever network it finds.
+
+## 5. Phone app
+
+1. Open the Vercel URL with Tailscale on.
+2. Tap **ESP32 cam** in the top-right toggle, then **Watch** (▶). Speech turns on and the screen is kept awake while watching.
+3. The gear opens **camera settings**: which way the camera faces, resolution, frame rate, image quality, flip, mirror, and pause. **Save to camera** applies on the next frame (within about 3 s while paused).
+
+Badge states: `ESP32 CAM · REAR · LIVE` when frames arrive, `WAITING` when the camera has gone quiet for more than 6 s.
+
+## 6. Orientation check (do this once with the camera worn)
+
+Positions for a rear-facing camera: image left = **5 o'clock** (behind your right), centre = **6**, image right = **7** (behind your left).
+
+1. Wear the camera, face away from a helper.
+2. Helper stands behind your **right** shoulder: the app should say 5 o'clock.
+3. If it says 7, toggle **Mirror image left/right** in settings and test again. If the image is upside down, toggle **Flip**.
+
+Record the result in `docs/BUILD_LOG.md`.
+
+## Alerts
+
+Local rules on the laptop decide what is spoken; no network AI round trip is involved:
+
+- **New person behind you**, once per track, after it has been seen in 3 frames.
+- **Closing in** (warning): the box of a person, bicycle, motorbike, car, bus, truck or dog grew by 10 %+ across recent frames. This is a monocular size cue, not a distance measurement. Warnings can interrupt; notices wait for a 4 s gap.
+- **Crossing behind you**: a full left-third to right-third traversal.
+
+Objects below 50 % confidence and other classes stay on screen only.
+
+## Privacy
+
+Only the newest frame is held in memory on the laptop; nothing is written to disk. The evidence export records model outputs and timing, never images. Do not commit Wi-Fi credentials, the token, or captured footage.
 
 ## Troubleshooting
 
-- Verify the board and laptop are on the same Wi-Fi network. Guest Wi-Fi may isolate devices.
-- The example's `/capture` endpoint is usually on the web UI port (80), while `/stream` is usually on port 81; check the URLs shown by your sketch if customized.
-- If `/stream` cannot open, try `/capture`. If both fail, open each URL in the laptop browser and check board IP and power.
-- Lower frame size/JPEG quality in the CameraWebServer UI if the feed stalls. Snapshot mode trades frame rate for simpler debugging.
-- Detection labels, left/center/right zones, and FPS are prototype outputs. Distance, approach direction, and safety alerts are not implemented yet.
+- **`Request failed: -1`** on Serial: TLS or DNS failure. Check `HECATE_BASE_URL` (https, `:8443`, no trailing slash) and that Funnel is on.
+- **`rejected the device token`**: the token differs between `secrets.h` and `HECATE_DEVICE_TOKEN`.
+- **App says waiting but Serial shows frames sent**: the phone is not on Tailscale or `VITE_API_URL` points elsewhere.
+- **Laggy**: lower resolution to QVGA or frame rate to ~1.5 fps; raise image quality number (smaller uploads).
+- **Camera init failed**: PSRAM setting is wrong or the ribbon cable is loose.
 
-No internet-facing port forwarding is needed for this local test. Do not put a private camera IP, Wi-Fi password, or captured frames in the repository.
+## Bench test without the hotspot (older path)
+
+The desktop detector can still pull from Espressif's CameraWebServer on the same Wi-Fi:
+
+```powershell
+python main.py --source "http://192.168.1.25:81/stream"
+python main.py --source "http://192.168.1.25/capture"
+```

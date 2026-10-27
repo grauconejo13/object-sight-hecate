@@ -47,6 +47,28 @@ ul { list-style: none; padding: 0; display: grid; gap: 8px; }
 li { border: 1px solid #354359; border-radius: 8px; padding: 12px; background: #192338; }
 .note, footer { color: #aebbd1; line-height: 1.5; font-size: .88rem; }
 footer { margin-top: 40px; }
+
+/* Camera source: phone camera or wearable ESP32 cam */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.source-toggle { display: inline-flex; padding: 3px; border: 1px solid #48675f; border-radius: 999px; background: #0b1619; }
+.source-toggle button { min-height: 36px; padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; color: #c6d4e9; font-size: .82rem; }
+.source-toggle button[aria-checked="true"] { background: #86dcc8; color: #08151a; }
+body[data-source="esp32"] .phone-only, body[data-source="phone"] .device-only { display: none !important; }
+#device-frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+#device-frame[hidden] { display: none; }
+#device-watch[aria-pressed="true"] { background: #ffcb82; border-color: #ffcb82; color: #08151a; }
+dialog { width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 20px; border: 1px solid #48675f; border-radius: 16px; background: #151f30; color: #e8eefb; }
+dialog::backdrop { background: #050811b8; }
+dialog h2 { margin-top: 0; }
+.field { display: grid; gap: 6px; margin: 14px 0; color: #c6d4e9; font-size: .9rem; }
+.field select, .field input[type="range"] { width: 100%; min-height: 40px; font: inherit; }
+.field select { padding: 8px; border: 1px solid #48675f; border-radius: 8px; background: #0b1619; color: #e8eefb; }
+.hint { color: #a5e9d9; }
+.range-ends { display: flex; justify-content: space-between; color: #8b9ab3; font-size: .75rem; }
+.check { display: flex; align-items: center; gap: 10px; min-height: 40px; color: #c6d4e9; }
+.check input { width: 20px; height: 20px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+button.secondary { border-color: #5d6a80; background: transparent; color: #cbd7eb; }
 @media (max-width: 520px) {
   html, body { height: 100%; overflow: hidden; }
   .shell { height: 100dvh; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display: flex; flex-direction: column; }
@@ -75,4 +97,10 @@ footer { margin-top: 40px; }
   .camera-controls .voice-control input, .camera-controls .voice-control span { position: absolute; opacity: 0; }
   .camera-status { right: 14px; bottom: 178px; left: 14px; max-height: 2.6em; overflow: hidden; text-overflow: ellipsis; }
   .back-controls, .results, footer { display: none; }
+  .title-row { flex-wrap: nowrap; }
+  .source-toggle button { min-height: 34px; padding: 5px 11px; }
+  #device-watch::before { content: "▶"; }
+  #device-watch[aria-pressed="true"]::before { content: "Ⅱ"; color: #08151a; }
+  #device-settings-open::before { content: "⚙"; }
+  body[data-source="esp32"] .camera-status { bottom: 72px; }
 }

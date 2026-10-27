@@ -112,6 +112,26 @@ Milestone 1 completed and was merged into `main` before Milestone 2 began.
 - Reserved Hecate as the working name for the future multi-view perception architecture.
 - No feature implementation started.
 
+## 2026-10-27 — Wearable ESP32 mode
+
+**Goal**
+
+- Make the ESP32-S3-EYE usable in the field: worn facing backward, powered by a pocket power bank, on the phone's hotspot.
+
+**Built / changed**
+
+- ESP32 push firmware (`firmware/hecate_esp32_push`): HTTPS uploads with a device token, settings read back from response headers, pause heartbeat.
+- Backend `DeviceSession`: server-side tracking, rear-mount clock mapping (5 / 6 / 7), local alert rules (new person, closing in, crossing) with cooldowns. Token-protected `/v1/device/*` for the camera; tailnet-only `/v1/esp32/*` for the app.
+- Phone app: Phone / ESP32 cam toggle, live ESP32 view with overlay and spoken alerts, camera settings sheet, screen wake lock.
+
+**Evidence / measurements**
+
+- 36 Python and 10 web tests pass. UI checked headlessly against a simulated camera feed. Firmware not yet compiled or run on the board.
+
+**Next step**
+
+- Flash, run the orientation check in `docs/ESP32_CAMERA.md`, record real latency over the hotspot.
+
 ## Entry Template
 
 ### YYYY-MM-DD — Session title

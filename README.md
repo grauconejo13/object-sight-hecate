@@ -107,7 +107,8 @@ The first model may download automatically on initial use.
 
 ## ESP32 and phone field tests
 
-- The existing desktop detector can now read the ESP32-S3 CameraWebServer stream or its JPEG snapshot endpoint. See [ESP32 camera setup](docs/ESP32_CAMERA.md).
+- **Wearable ESP32 cam:** an ESP32-S3-EYE worn facing behind you, on a power bank and your phone's hotspot, pushes frames to the backend. The phone app switches between **Phone** and **ESP32 cam**, shows the feed with rear-relative clock positions (5 / 6 / 7 o'clock), speaks alerts, and edits the camera's settings remotely. See [ESP32 camera setup](docs/ESP32_CAMERA.md).
+- The desktop detector can still read the ESP32 CameraWebServer stream on the same Wi-Fi for bench tests.
 - A separate phone-camera preview is ready for Vercel (frontend) and Render (analysis API). It sends one image only when you tap Analyze. See [field test deployment](docs/FIELD_TEST_DEPLOY.md).
 
 These are input and testing paths for the same perception core. Remote cloud inference is experimental and is not used for time-critical alerts. The final OpenCV AI Competition entry still needs a meaningful AWS component.
