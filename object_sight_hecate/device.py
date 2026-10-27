@@ -224,7 +224,7 @@ class DeviceSession:
         elif temporal.range_trend == "approaching" and temporal.sample_count >= ALERT_MIN_SAMPLES:
             kind = "approaching"
             priority = "warn"
-            message = f"{name} closing in, {clock_position} o'clock."
+            message = f"{name}, {clock_position} o'clock, getting larger in view."
         elif temporal.sample_count >= ALERT_MIN_SAMPLES - 1 and detection.label == "person":
             kind = "new"
             message = f"{name} {'behind you' if behind else 'ahead'}, {clock_position} o'clock."
