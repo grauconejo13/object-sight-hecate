@@ -4,6 +4,7 @@ import { createFieldEvidenceLog } from "./field-evidence.js";
 import {
   FRAME_SIZES, INTERVALS_MS, caption, createDevicePoller, describeDeviceStatus, pickAlertToSpeak, settingsFromForm,
 } from "./device-mode.js";
+import { askButtonLabel, briefingTag, phoneBriefingRequest } from "./briefing.js";
 
 const video = document.querySelector("#camera");
 const canvas = document.querySelector("#snapshot");
@@ -36,6 +37,12 @@ const deviceSettingsForm = document.querySelector("#device-settings-form");
 const deviceSettingsStatus = document.querySelector("#device-settings-status");
 const deviceSettingsClose = document.querySelector("#device-settings-close");
 const qualityValue = document.querySelector("#quality-value");
+const askButton = document.querySelector("#ask-hecate");
+const briefingPanel = document.querySelector("#briefing");
+const briefingText = document.querySelector("#briefing-text");
+const briefingTagLine = document.querySelector("#briefing-tag");
+const briefingClose = document.querySelector("#briefing-close");
+let lastPhoneItems = null;
 
 let stream = null;
 let cameraFacing = "environment";
@@ -430,10 +437,15 @@ async function analyzeFrame(isLive = false) {
     updateEvidenceExport();
     if (isLive) {
       processPersonTracks(items, data.width, data.height);
+      lastPhoneItems = items.map((item) => {
+        const track = personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === item);
+        return track ? { ...item, motion: track.motion } : item;
+      });
       drawLiveDetections(items, data.width, data.height);
       if (!backMode) speakLiveResult(items);
     } else {
       drawDetections(items, data.width, data.height);
+      lastPhoneItems = items;
     }
     setStatus(items.length
       ? `${items.length} observation(s) · ${data.inference_ms} ms server processing`
@@ -577,6 +589,8 @@ function setSource(next) {
     deviceFrame.hidden = true;
   }
   source = next;
+  lastPhoneItems = null;
+  briefingPanel.hidden = true;
   document.body.dataset.source = next;
   sourcePhoneButton.setAttribute("aria-checked", String(next === "phone"));
   sourceEsp32Button.setAttribute("aria-checked", String(next === "esp32"));
@@ -749,6 +763,81 @@ document.addEventListener("visibilitychange", () => {
 try {
   if (localStorage.getItem(SOURCE_KEY) === "esp32") setSource("esp32");
 } catch { /* storage unavailable */ }
+
+// --- Ask Hecate: optional Nemotron scene briefing ---------------------------
+// Runs beside detection, never inside it: live analysis and ESP32 alerts keep
+// going while a briefing request is in flight.
+
+let briefingRequest = null;
+
+function showBriefing(text, tag, unavailable = false) {
+  briefingText.textContent = text;
+  briefingTagLine.textContent = tag;
+  briefingPanel.classList.toggle("unavailable", unavailable);
+  briefingPanel.hidden = false;
+}
+
+async function refreshBriefingStatus() {
+  if (!apiBase) return;
+  try {
+    const response = await fetch(`${apiBase}/v1/briefing/status`);
+    const status = await response.json();
+    if (!response.ok) throw new Error(status.detail || `HTTP ${response.status}`);
+    askButton.title = askButtonLabel(status);
+    askButton.setAttribute("aria-label", askButton.title);
+    askButton.dataset.nebius = status.available ? "available" : "unavailable";
+  } catch {
+    askButton.title = "Ask Hecate (backend not reachable)";
+    askButton.setAttribute("aria-label", askButton.title);
+    askButton.dataset.nebius = "unreachable";
+  }
+}
+
+async function askHecate() {
+  if (briefingRequest) return;
+  if (!apiBase) {
+    showBriefing("Set VITE_API_URL to your backend URL first.", "Not configured", true);
+    return;
+  }
+  let body;
+  if (source === "esp32") {
+    body = { source: "esp32" };
+  } else if (lastPhoneItems) {
+    body = phoneBriefingRequest(lastPhoneItems);
+  } else {
+    showBriefing("Analyze a frame or start live analysis first, then ask again.", "No scene yet", true);
+    return;
+  }
+
+  const request = new AbortController();
+  const timeout = setTimeout(() => request.abort(), 15000);
+  briefingRequest = request;
+  askButton.setAttribute("aria-busy", "true");
+  showBriefing("Asking Hecate…", askButton.dataset.nebius === "available" ? "NVIDIA Nemotron on Nebius" : "Local summary");
+  try {
+    const response = await fetch(`${apiBase}/v1/briefing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: request.signal,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
+    showBriefing(result.text, briefingTag(result), result.provider !== "nemotron");
+    say(result.text);
+  } catch (error) {
+    const message = error.name === "AbortError" ? "Briefing timed out." : `Briefing failed: ${error.message}`;
+    showBriefing(message, "Live detection is unaffected", true);
+  } finally {
+    clearTimeout(timeout);
+    briefingRequest = null;
+    askButton.removeAttribute("aria-busy");
+  }
+}
+
+askButton.addEventListener("click", askHecate);
+briefingClose.addEventListener("click", () => { briefingPanel.hidden = true; });
+refreshBriefingStatus();
 
 updateEvidenceExport();
 window.addEventListener("pagehide", () => {

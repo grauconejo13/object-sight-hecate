@@ -69,6 +69,18 @@ dialog h2 { margin-top: 0; }
 .check input { width: 20px; height: 20px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 button.secondary { border-color: #5d6a80; background: transparent; color: #cbd7eb; }
+
+/* Ask Hecate: optional Nemotron scene briefing */
+#ask-hecate { background: #2a2350; border-color: #b9a8ff; color: #efeaff; }
+#ask-hecate[aria-busy="true"] { opacity: .7; cursor: progress; }
+.briefing { position: absolute; top: 56px; right: 14px; left: 14px; z-index: 5; padding: 12px 40px 10px 14px; border: 1px solid #b9a8ff; border-radius: 12px; background: #141029f0; box-shadow: 0 6px 20px #0008; }
+.briefing[hidden] { display: none; }
+.briefing p { margin: 0; }
+#briefing-text { color: #f3f0ff; font-size: .98rem; line-height: 1.4; }
+.briefing-tag { margin-top: 6px !important; color: #b9a8ff; font: 600 .68rem ui-monospace, monospace; letter-spacing: .04em; }
+.briefing.unavailable { border-color: #8592a8; }
+.briefing.unavailable .briefing-tag { color: #f1b563; }
+.briefing-close { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: #c9c0f5; font-size: 1.3rem; line-height: 1; }
 @media (max-width: 520px) {
   html, body { height: 100%; overflow: hidden; }
   .shell { height: 100dvh; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display: flex; flex-direction: column; }
@@ -81,7 +93,7 @@ button.secondary { border-color: #5d6a80; background: transparent; color: #cbd7e
   .evidence-control { top: 12px; right: 12px; width: 38px; min-width: 38px; min-height: 38px; padding: 0; border-radius: 50%; color: transparent; font-size: 0; }
   .evidence-control::before { content: "⇩"; position: absolute; inset: 0; display: grid; place-items: center; color: #d8f5ed; font-size: 1.2rem; }
   .evidence-count { display: none; }
-  .camera-controls { right: 12px; bottom: 12px; left: 12px; display: grid; grid-template-columns: repeat(3, 1fr); justify-content: stretch; max-width: none; }
+  .camera-controls { right: 12px; bottom: 12px; left: 12px; display: grid; grid-template-columns: repeat(4, 1fr); justify-content: stretch; max-width: none; }
   .camera-controls .control-button, .camera-controls .voice-control { position: relative; min-width: 0; min-height: 48px; padding: 0; border-radius: 50%; justify-self: center; width: 48px; height: 48px; color: transparent !important; font-size: 0; }
   .control-button::before, .camera-controls .voice-control::before { position: absolute; inset: 0; display: grid; place-items: center; color: #e8eefb; font-size: 1.35rem; line-height: 1; }
   #start::before { content: "◉"; }
@@ -103,4 +115,6 @@ button.secondary { border-color: #5d6a80; background: transparent; color: #cbd7e
   #device-watch[aria-pressed="true"]::before { content: "Ⅱ"; color: #08151a; }
   #device-settings-open::before { content: "⚙"; }
   body[data-source="esp32"] .camera-status { bottom: 72px; }
+  #ask-hecate::before { content: "✦"; color: #efeaff; }
+  .briefing { top: 58px; right: 12px; left: 12px; }
 }

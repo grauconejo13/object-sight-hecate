@@ -68,6 +68,7 @@ Later stages may add multi-camera fusion, adaptive low-light capture, pose/activ
 - Python
 - OpenCV 5
 - Ultralytics YOLO for the first detector/tracker adapter
+- NVIDIA Nemotron on Nebius Token Factory for optional scene briefings
 - AWS services where they add meaningful agentic or cloud capability
 
 Dependencies are pinned as the competition build stabilizes.
@@ -112,6 +113,16 @@ The first model may download automatically on initial use.
 - A separate phone-camera preview is ready for Vercel (frontend) and Render (analysis API). It sends one image only when you tap Analyze. See [field test deployment](docs/FIELD_TEST_DEPLOY.md).
 
 These are input and testing paths for the same perception core. Remote cloud inference is experimental and is not used for time-critical alerts. The final OpenCV AI Competition entry still needs a meaningful AWS component.
+
+## Scene briefing: NVIDIA Nemotron on Nebius Token Factory
+
+Tap **Ask Hecate** (✦) and Hecate speaks one cautious sentence about what it is tracking, e.g. *"Rear view: a person at 6 o'clock and a car at 7 o'clock."*
+
+- **How Nemotron is used:** the backend sends Nemotron (`nvidia/nemotron-3-super-120b-a12b` by default) the structured scene from YOLO and tracking (labels, clock directions, view-size trends, and the last 30 s of local alerts) through Token Factory's OpenAI-compatible API. Nemotron prioritises and groups it into one sentence that can be taken in by ear. No images or boxes leave the laptop.
+- **Why it matters:** detections are per-box and per-frame; a person walking needs one prioritised summary of the scene. That aggregation is the model's job here.
+- **What stays local:** detection, tracking and the time-critical spoken alerts never wait on the cloud.
+- **Guardrails:** every reply is checked locally. Claims of identity, intent, danger or distance, or directions not in the data, are discarded for a deterministic local summary. The app shows which one you are hearing, and when Nebius is unavailable.
+- **Setup:** set `NEBIUS_API_KEY` on the backend. Details in [docs/NEBIUS.md](docs/NEBIUS.md).
 
 ## Status
 

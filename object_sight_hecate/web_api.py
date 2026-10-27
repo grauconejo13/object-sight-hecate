@@ -6,6 +6,8 @@ Route groups:
                    prefix that should be exposed publicly (Tailscale Funnel).
 - /v1/esp32/*      the phone app views the ESP32 feed and edits its settings
                    (tailnet-only, like /v1/analyze).
+- /v1/briefing     optional Nemotron scene briefing on request (tailnet-only).
+                   Separate from detection so a slow cloud call never delays it.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+from object_sight_hecate.briefing import Briefer, build_facts
 from object_sight_hecate.device import DeviceSession
 
 from object_sight_hecate.spatial.position import observe
@@ -84,6 +87,11 @@ def get_device_session() -> DeviceSession:
     return DeviceSession(
         lambda: ObjectDetector(model_name=os.getenv("HECATE_MODEL", "yolo11n.pt"))
     )
+
+
+@lru_cache(maxsize=1)
+def get_briefer() -> Briefer:
+    return Briefer.from_env()
 
 
 async def read_jpeg_body(request: Request, limit: int = MAX_UPLOAD_BYTES) -> bytes:
@@ -185,3 +193,45 @@ async def esp32_update_settings(request: Request) -> dict:
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"settings": settings.as_dict()}
+
+
+# --- Scene briefing (Nemotron on Nebius Token Factory, optional) ----------
+
+@app.get("/v1/briefing/status")
+def briefing_status() -> dict:
+    return get_briefer().status()
+
+
+@app.post("/v1/briefing")
+async def briefing(request: Request) -> dict:
+    """Summarise the current scene in one sentence.
+
+    {"source": "esp32"} uses the wearable camera's latest tracked frame and
+    recent local alerts. {"source": "phone", "observations": [...]} uses the
+    detections the phone app just received from /v1/analyze.
+    """
+    try:
+        payload = await request.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Send a JSON object") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Send a JSON object")
+
+    source = payload.get("source")
+    if source == "esp32":
+        context = get_device_session().briefing_context()
+        facts = build_facts(
+            context["observations"],
+            view=context["mounting"],
+            recent_alerts=context["recent_alerts"],
+            stale=not context["online"],
+        )
+    elif source == "phone":
+        observations = payload.get("observations")
+        if not isinstance(observations, list) or len(observations) > 100:
+            raise HTTPException(status_code=400, detail="observations must be a list of at most 100 items")
+        facts = build_facts([o for o in observations if isinstance(o, dict)], view="phone")
+    else:
+        raise HTTPException(status_code=400, detail="source must be 'esp32' or 'phone'")
+
+    return await run_in_threadpool(get_briefer().brief, facts)
