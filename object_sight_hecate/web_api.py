@@ -154,15 +154,21 @@ def esp32_latest(after_alert: int = 0) -> dict:
 
 
 @app.get("/v1/esp32/frame.jpg")
-def esp32_frame() -> Response:
+def esp32_frame(seq: int | None = None) -> Response:
+    """Serve the exact frame whose detections the phone just received."""
     latest = get_device_session().latest_jpeg()
     if latest is None:
         raise HTTPException(status_code=404, detail="No ESP32 frame received yet")
-    seq, jpeg = latest
+    latest_seq, jpeg = latest
+    if seq is not None and seq != latest_seq:
+        raise HTTPException(
+            status_code=409,
+            detail="Requested frame is no longer current; fetch a fresh snapshot",
+        )
     return Response(
         content=jpeg,
         media_type="image/jpeg",
-        headers={"Cache-Control": "no-store", "X-Hecate-Seq": str(seq)},
+        headers={"Cache-Control": "no-store", "X-Hecate-Seq": str(latest_seq)},
     )
 
 
