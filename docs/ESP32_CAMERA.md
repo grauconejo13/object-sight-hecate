@@ -98,7 +98,7 @@ Record the result in `docs/BUILD_LOG.md`.
 Local rules on the laptop decide what is spoken; no network AI round trip is involved:
 
 - **New person behind you**, once per track, after it has been seen in 3 frames.
-- **Closing in** (warning): the box of a person, bicycle, motorbike, car, bus, truck or dog grew by 10 %+ across recent frames. This is a monocular size cue, not a distance measurement. Warnings can interrupt; notices wait for a 4 s gap.
+- **Getting larger in view** (warning): the box of a person, bicycle, motorbike, car, bus, truck or dog grew by 10 %+ across recent frames. This is a monocular size cue, not a distance measurement. Warnings can interrupt; notices wait for a 4 s gap.
 - **Crossing behind you**: a full left-third to right-third traversal.
 
 Objects below 50 % confidence and other classes stay on screen only.
