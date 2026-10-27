@@ -94,6 +94,63 @@ class GuardTests(unittest.TestCase):
     def test_rejects_directions_not_in_facts(self) -> None:
         self.assertIn("4 o'clock", check_briefing("Rear view: a person at 4 o'clock.", self.facts))
 
+    def test_rejects_objects_not_in_facts_even_at_a_valid_direction(self) -> None:
+        # 6 and 7 o'clock are real directions in the facts; the objects are invented.
+        for text, word in (
+            ("Rear view: a dog at 6 o'clock.", "dog"),
+            ("Rear view: a bicycle at 7 o'clock.", "bicycle"),
+            ("Rear view: a person at 6 o'clock and a bus.", "bus"),
+            ("Rear view: a tree at 6 o'clock.", "tree"),
+            ("Rear view: a scooter at 7 o'clock.", "scooter"),
+            ("Rear view: an animal at 6 o'clock.", "animal"),
+        ):
+            with self.subTest(text=text):
+                reason = check_briefing(text, self.facts)
+                self.assertIsNotNone(reason)
+                self.assertIn(f"'{word}'", reason)
+
+    def test_rejects_invented_person_or_car_when_scene_lacks_them(self) -> None:
+        bench_only = build_facts([{"label": "bench", "confidence": 0.9, "clock": 6}], view="backward")
+        self.assertIn("'person'", check_briefing("Rear view: a person at 6 o'clock.", bench_only))
+        self.assertIn("'car'", check_briefing("Rear view: a car at 6 o'clock.", bench_only))
+        self.assertIn("'pedestrian'", check_briefing("Rear view: a pedestrian at 6 o'clock.", bench_only))
+        self.assertIsNone(check_briefing("Rear view: a bench at 6 o'clock.", bench_only))
+
+    def test_rejects_real_object_at_the_wrong_direction(self) -> None:
+        self.assertIn("placed 'car' at 6", check_briefing("Rear view: a car at 6 o'clock.", self.facts))
+        # One direction after two objects applies to both.
+        self.assertIn("placed 'person' at 7", check_briefing("Rear view: a person and a car at 7 o'clock.", self.facts))
+
+    def test_rejects_a_direction_with_no_detected_object(self) -> None:
+        self.assertIn("without naming", check_briefing("Rear view: something at 6 o'clock.", self.facts))
+
+    def test_rejects_inflated_counts(self) -> None:
+        self.assertIn("more than", check_briefing("Rear view: two people at 6 o'clock.", self.facts))
+        split = build_facts([PERSON, {**PERSON, "clock": 7}], view="backward")
+        self.assertIn("have 1", check_briefing("Rear view: two people at 6 o'clock.", split))
+        self.assertIsNone(check_briefing("Rear view: a person at 6 o'clock and a person at 7 o'clock.", split))
+
+    def test_accepts_synonyms_for_objects_that_are_present(self) -> None:
+        self.assertIsNone(check_briefing("Rear view: a pedestrian at 6 o'clock and a vehicle at 7 o'clock.", self.facts))
+
+    def test_clock_object_does_not_collide_with_o_clock(self) -> None:
+        facts = build_facts([{"label": "clock", "confidence": 0.9, "clock": 12}], view="forward")
+        self.assertIsNone(check_briefing("Front view: a clock at 12 o'clock.", facts))
+        self.assertIsNotNone(check_briefing("Rear view: a person at 6 o'clock.", build_facts([CAR], view="backward")))
+
+    def test_local_summaries_always_pass_the_guard(self) -> None:
+        scenes = [
+            [PERSON, CAR],
+            [PERSON, PERSON, {"label": "chair", "confidence": 0.9, "clock": 5}],
+            [{"label": "traffic light", "confidence": 0.8, "clock": 3}, {"label": "clock", "confidence": 0.8, "clock": 12}],
+            [{"label": "bus", "confidence": 0.8, "clock": 5}, {"label": "knife", "confidence": 0.8, "clock": 7}],
+            [],
+        ]
+        for scene in scenes:
+            facts = build_facts(scene, view="backward")
+            with self.subTest(scene=local_briefing(facts)):
+                self.assertIsNone(check_briefing(local_briefing(facts), facts))
+
     def test_strips_reasoning_and_quotes(self) -> None:
         self.assertEqual(clean_reply('<think>count them</think>\n"Rear view: a person at 6 o\'clock."'), "Rear view: a person at 6 o'clock.")
         self.assertEqual(clean_reply("planning...</think> Rear view: a car at 7 o'clock."), "Rear view: a car at 7 o'clock.")
@@ -118,6 +175,13 @@ class BrieferTests(unittest.TestCase):
         self.assertEqual(call["headers"]["Authorization"], "Bearer sk-test")
         self.assertEqual(call["body"]["model"], "nvidia/nemotron-3-super-120b-a12b")
         self.assertEqual(json.loads(call["body"]["messages"][1]["content"])["view_name"], "Rear view")
+
+    def test_invented_object_reply_falls_back_to_local(self) -> None:
+        transport, _ = reply("Rear view: a person at 6 o'clock and a dog at 7 o'clock.")
+        result = Briefer(api_key="sk-test", transport=transport).brief(self.facts)
+        self.assertEqual((result["provider"], result["nebius"]), ("local", "guarded"))
+        self.assertIn("'dog'", result["reason"])
+        self.assertEqual(result["text"], "Rear view: a person at 6 o'clock and a car at 7 o'clock.")
 
     def test_guarded_reply_falls_back_to_local(self) -> None:
         transport, _ = reply("Rear view: a dangerous man at 6 o'clock.")

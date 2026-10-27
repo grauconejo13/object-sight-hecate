@@ -7,8 +7,10 @@ Division of labour:
   (labels, clock directions, view-size trends, recent local alerts; never
   images) and summarises it as one short sentence a wearer can take in by ear.
 - A local guard checks every model reply against the facts. Anything that
-  claims identity, intent, danger, or distance, or mentions a direction that is
-  not in the facts, is discarded in favour of a deterministic local summary.
+  claims identity, intent, danger, or distance, names an object that is not in
+  the facts, puts an object at a direction or count the facts do not support,
+  or mentions a direction that is not in the facts, is discarded in favour of a
+  deterministic local summary.
 
 Configuration (environment only; never commit keys):
     NEBIUS_API_KEY    required to enable Nemotron
@@ -69,6 +71,127 @@ _THINK_RE = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
 PRIORITY = {"person": 0, "bicycle": 1, "motorcycle": 1, "car": 1, "bus": 1, "truck": 1, "dog": 2, "cat": 2}
 
 PLURALS = {"person": "people", "bus": "buses", "knife": "knives"}
+
+# --- Object grounding --------------------------------------------------------
+# Every object word in a reply must refer to something in the facts. The
+# vocabulary is YOLO's COCO classes plus the synonyms a language model tends to
+# use, and common scene nouns YOLO cannot detect (always rejected: the facts can
+# never contain them, so naming one is invention).
+
+COCO_LABELS = (
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog",
+    "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
+    "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
+    "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
+    "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant",
+    "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
+    "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors",
+    "teddy bear", "hair drier", "toothbrush",
+)
+_ANIMALS = frozenset({"bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe"})
+_VEHICLES = frozenset({"car", "bus", "truck", "motorcycle"})
+_SYNONYMS: dict[str, frozenset[str]] = {
+    "people": frozenset({"person"}), "persons": frozenset({"person"}),
+    "pedestrian": frozenset({"person"}), "pedestrians": frozenset({"person"}),
+    "someone": frozenset({"person"}), "somebody": frozenset({"person"}),
+    "figure": frozenset({"person"}), "figures": frozenset({"person"}),
+    "individual": frozenset({"person"}), "individuals": frozenset({"person"}), "crowd": frozenset({"person"}),
+    "cyclist": frozenset({"bicycle"}), "cyclists": frozenset({"bicycle"}),
+    "bike": frozenset({"bicycle", "motorcycle"}), "bikes": frozenset({"bicycle", "motorcycle"}),
+    "motorbike": frozenset({"motorcycle"}), "motorbikes": frozenset({"motorcycle"}),
+    "motorcyclist": frozenset({"motorcycle"}), "motorcyclists": frozenset({"motorcycle"}),
+    "vehicle": _VEHICLES, "vehicles": _VEHICLES,
+    "van": frozenset({"car", "truck"}), "vans": frozenset({"car", "truck"}),
+    "lorry": frozenset({"truck"}), "lorries": frozenset({"truck"}), "suv": frozenset({"car"}), "suvs": frozenset({"car"}),
+    "animal": _ANIMALS, "animals": _ANIMALS, "puppy": frozenset({"dog"}),
+    "phone": frozenset({"cell phone"}), "phones": frozenset({"cell phone"}),
+    "television": frozenset({"tv"}), "sofa": frozenset({"couch"}),
+    "table": frozenset({"dining table"}), "tables": frozenset({"dining table"}),
+    "plant": frozenset({"potted plant"}), "plants": frozenset({"potted plant"}),
+    "bag": frozenset({"handbag", "backpack", "suitcase"}), "bags": frozenset({"handbag", "backpack", "suitcase"}),
+    "ball": frozenset({"sports ball"}), "ski": frozenset({"skis"}),
+}
+_UNDETECTABLE = (
+    "tree", "trees", "building", "buildings", "wall", "walls", "pole", "poles", "fence", "fences",
+    "road", "street", "sidewalk", "path", "trail", "door", "doors", "window", "windows", "house",
+    "houses", "stroller", "strollers", "wheelchair", "wheelchairs", "scooter", "scooters",
+    "shadow", "shadows", "vegetation", "bush", "bushes", "post", "posts", "sign", "signs",
+)
+_IRREGULAR_PLURALS = {"person": "people", "knife": "knives", "mouse": "mice", "sheep": "sheep", "skis": "skis"}
+
+
+def _surface_forms() -> dict[str, frozenset[str]]:
+    forms: dict[str, frozenset[str]] = {}
+    for label in COCO_LABELS:
+        for form in {label, label + "s", label + "es", _IRREGULAR_PLURALS.get(label, label)}:
+            forms[form] = frozenset({label})
+    forms.update(_SYNONYMS)
+    for word in _UNDETECTABLE:
+        forms.setdefault(word, frozenset())
+    return forms
+
+
+_OBJECT_FORMS = _surface_forms()
+_OBJECT_RE = re.compile(
+    r"\b(" + "|".join(re.escape(f) for f in sorted(_OBJECT_FORMS, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+_COUNT_WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+                "ten": 10, "several": 2, "multiple": 2, "many": 3}
+_COUNT_RE = re.compile(r"\b(\d+|" + "|".join(_COUNT_WORDS) + r")\s+$", re.IGNORECASE)
+_CLOCK_TOKEN_RE = re.compile(r"§(\d+)§")
+
+
+def _check_objects(text: str, facts: SceneFacts) -> str | None:
+    """Every object named must be in the facts, at the direction and count claimed.
+
+    Within a clause, a direction applies to every object named since the
+    previous direction: "a person and a car at 7 o'clock" places both at 7.
+    """
+    body = text.split(":", 1)[1] if ":" in text else text
+    # Hide "N o'clock" so the COCO label "clock" cannot match inside it.
+    body = _CLOCK_RE.sub(lambda m: f" §{int(m.group(1))}§ ", body)
+    present = Counter(obj["label"] for obj in facts.objects)
+    at_clock: dict[int, Counter[str]] = {}
+    for obj in facts.objects:
+        at_clock.setdefault(obj["clock"], Counter())[obj["label"]] += 1
+
+    for clause in re.split(r"[;.]", body):
+        pending: list[tuple[str, int]] = []
+        tokens = sorted(
+            [(m.start(), "object", m) for m in _OBJECT_RE.finditer(clause)]
+            + [(m.start(), "clock", m) for m in _CLOCK_TOKEN_RE.finditer(clause)],
+            key=lambda item: item[0],
+        )
+        for _, kind, match in tokens:
+            if kind == "object":
+                word = match.group(1).lower()
+                labels = _OBJECT_FORMS[word]
+                if not labels or not labels & present.keys():
+                    return f"named '{word}', which is not in the scene facts"
+                count = _COUNT_RE.search(clause[: match.start()])
+                claimed = 1
+                if count:
+                    raw = count.group(1).lower()
+                    claimed = int(raw) if raw.isdigit() else _COUNT_WORDS[raw]
+                    if claimed > sum(present[label] for label in labels):
+                        return f"claimed {raw} '{word}', more than the scene facts contain"
+                pending.append((word, claimed))
+                continue
+            clock = int(match.group(1))
+            if not pending:
+                return f"gave {clock} o'clock without naming a detected object"
+            here = at_clock.get(clock, Counter())
+            for word, claimed in pending:
+                available = sum(here[label] for label in _OBJECT_FORMS[word])
+                if available == 0:
+                    return f"placed '{word}' at {clock} o'clock, which the scene facts do not"
+                if claimed > available:
+                    return f"claimed {claimed} '{word}' at {clock} o'clock; the scene facts have {available}"
+            pending = []
+    return None
 
 
 @dataclass(frozen=True)
@@ -193,7 +316,7 @@ def check_briefing(text: str, facts: SceneFacts) -> str | None:
     for clock in _CLOCK_RE.findall(text):
         if int(clock) not in facts.clocks:
             return f"mentioned {clock} o'clock, which is not in the facts"
-    return None
+    return _check_objects(text, facts)
 
 
 def clean_reply(content: str) -> str:
