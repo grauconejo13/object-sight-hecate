@@ -115,7 +115,7 @@ class DeviceSessionTests(unittest.TestCase):
         self.assertEqual(kinds.count("approaching"), 1)
         warn = next(a for a in session.snapshot()["alerts"] if a["kind"] == "approaching")
         self.assertEqual(warn["priority"], "warn")
-        self.assertEqual(warn["message"], "Person closing in, 6 o'clock.")
+        self.assertEqual(warn["message"], "Person, 6 o'clock, getting larger in view.")
 
     def test_irrelevant_and_low_confidence_objects_stay_silent(self) -> None:
         clock = Clock()
@@ -193,6 +193,9 @@ class DeviceApiTests(unittest.TestCase):
         frame = self.client.get("/v1/esp32/frame.jpg")
         self.assertEqual(frame.headers["content-type"], "image/jpeg")
         self.assertEqual(frame.headers["cache-control"], "no-store")
+        self.assertEqual(frame.headers["X-Hecate-Seq"], "1")
+        self.assertEqual(self.client.get("/v1/esp32/frame.jpg?seq=1").status_code, 200)
+        self.assertEqual(self.client.get("/v1/esp32/frame.jpg?seq=2").status_code, 409)
 
     def test_phone_settings_reach_the_device(self) -> None:
         put = self.client.put("/v1/esp32/settings", json={"paused": True, "frame_size": "SVGA"})
