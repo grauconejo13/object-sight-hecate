@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from ultralytics import YOLO
 
 
 @dataclass(frozen=True)
@@ -26,6 +25,9 @@ class ObjectDetector:
     """Ultralytics detector/tracker returning model-agnostic detection records."""
 
     def __init__(self, model_name: str = "yolo11n.pt", confidence: float = 0.35) -> None:
+        # Imported lazily so spatial utilities, the API, and tests load without PyTorch.
+        from ultralytics import YOLO
+
         self.model = YOLO(model_name)
         self.confidence = confidence
 

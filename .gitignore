@@ -40,3 +40,6 @@ captures/
 node_modules/
 dist/
 .vercel/
+
+# ESP32 secrets (Wi-Fi, device token)
+firmware/**/secrets.h

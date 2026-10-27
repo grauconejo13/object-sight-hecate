@@ -6,17 +6,24 @@
     <meta name="theme-color" content="#101523" />
     <title>Hecate · Field Test</title>
   </head>
-  <body>
+  <body data-source="phone">
     <main class="shell">
       <header class="header">
         <p class="eyebrow">OBJECT SIGHT / FIELD TEST</p>
-        <h1>Hecate<span class="star">✦</span></h1>
+        <div class="title-row">
+          <h1>Hecate<span class="star">✦</span></h1>
+          <div class="source-toggle" role="radiogroup" aria-label="Camera source">
+            <button id="source-phone" type="button" role="radio" aria-checked="true">Phone</button>
+            <button id="source-esp32" type="button" role="radio" aria-checked="false">ESP32 cam</button>
+          </div>
+        </div>
         <p class="subtitle">Point the camera, capture a frame, and inspect what the vision model sees.</p>
       </header>
 
       <section class="viewer" aria-label="Camera preview">
         <video id="camera" autoplay muted playsinline></video>
         <canvas id="snapshot" hidden></canvas>
+        <img id="device-frame" alt="Latest frame from the wearable ESP32 camera" hidden />
         <canvas id="overlay" aria-hidden="true"></canvas>
         <p id="camera-placeholder" class="placeholder">Camera is off. Tap Start camera to begin.</p>
         <span class="badge">LIVE PREVIEW · NO AUTO UPLOAD</span>
@@ -25,19 +32,51 @@
         <p id="evidence-count" class="evidence-count" aria-live="polite">0 field-test entries recorded locally.</p>
 
         <div class="camera-controls" aria-label="Camera controls">
-          <button id="start" class="control-button" type="button" aria-label="Start camera" title="Start camera">Start camera</button>
-          <button id="switch" class="control-button" type="button" disabled aria-label="Use front camera" title="Use front camera">Use front camera</button>
-          <button id="analyze" class="control-button" type="button" disabled aria-label="Analyze one frame" title="Analyze one frame">Analyze one frame</button>
-          <button id="live" class="control-button" type="button" disabled aria-label="Start live analysis" title="Start live analysis">Start live analysis</button>
-          <button id="stop" class="control-button" type="button" disabled aria-label="Stop camera" title="Stop camera">Stop camera</button>
-          <button id="back-mode" class="control-button" type="button" aria-pressed="false" aria-label="Have my back" title="Have my back">Have my back</button>
-          <button id="focus-person" class="control-button" type="button" disabled aria-label="Focus person" title="Focus person">Focus person</button>
-          <button id="listen-command" class="control-button" type="button" disabled aria-label="Tap to speak a command" title="Tap to speak a command">Tap to speak a command</button>
+          <button id="start" class="control-button phone-only" type="button" aria-label="Start camera" title="Start camera">Start camera</button>
+          <button id="switch" class="control-button phone-only" type="button" disabled aria-label="Use front camera" title="Use front camera">Use front camera</button>
+          <button id="analyze" class="control-button phone-only" type="button" disabled aria-label="Analyze one frame" title="Analyze one frame">Analyze one frame</button>
+          <button id="live" class="control-button phone-only" type="button" disabled aria-label="Start live analysis" title="Start live analysis">Start live analysis</button>
+          <button id="stop" class="control-button phone-only" type="button" disabled aria-label="Stop camera" title="Stop camera">Stop camera</button>
+          <button id="back-mode" class="control-button phone-only" type="button" aria-pressed="false" aria-label="Have my back" title="Have my back">Have my back</button>
+          <button id="focus-person" class="control-button phone-only" type="button" disabled aria-label="Focus person" title="Focus person">Focus person</button>
+          <button id="listen-command" class="control-button phone-only" type="button" disabled aria-label="Tap to speak a command" title="Tap to speak a command">Tap to speak a command</button>
+          <button id="device-watch" class="control-button device-only" type="button" aria-pressed="false" aria-label="Watch ESP32 cam" title="Watch ESP32 cam">Watch ESP32 cam</button>
+          <button id="device-settings-open" class="control-button device-only" type="button" aria-label="Camera settings" title="Camera settings">Camera settings</button>
           <label class="voice-control" title="Speak detections"><input id="voice" type="checkbox" /><span>Speak detections</span></label>
         </div>
       </section>
 
-      <section class="back-controls" aria-label="Have my back controls">
+      <dialog id="device-settings" aria-labelledby="device-settings-title">
+        <form id="device-settings-form" method="dialog">
+          <h2 id="device-settings-title">ESP32 cam settings</h2>
+          <p id="device-settings-status" class="note" role="status">Changes apply on the camera's next frame.</p>
+          <label class="field">Camera faces
+            <select name="mounting">
+              <option value="backward">Behind me (clipped to back or bag)</option>
+              <option value="forward">Ahead of me (chest or strap)</option>
+            </select>
+          </label>
+          <label class="field">Resolution
+            <select name="frame_size"></select>
+          </label>
+          <label class="field">Frame rate
+            <select name="interval_ms"></select>
+          </label>
+          <label class="field">Image quality <span id="quality-value" class="hint"></span>
+            <input name="jpeg_quality" type="range" min="8" max="40" step="1" />
+            <span class="range-ends"><span>Sharper</span><span>Smaller uploads</span></span>
+          </label>
+          <label class="check"><input name="vflip" type="checkbox" /> Flip image upside down</label>
+          <label class="check"><input name="hmirror" type="checkbox" /> Mirror image left/right</label>
+          <label class="check"><input name="paused" type="checkbox" /> Pause camera uploads</label>
+          <div class="dialog-actions">
+            <button id="device-settings-close" type="button" class="secondary">Close</button>
+            <button id="device-settings-save" type="submit" value="save">Save to camera</button>
+          </div>
+        </form>
+      </dialog>
+
+      <section class="back-controls phone-only" aria-label="Have my back controls">
         <h2>Have my back</h2>
         <p>Rear camera view · People first · Approximate screen tracking</p>
         <p id="back-status" role="status">Off. Camera positions are relative to the rear camera view.</p>

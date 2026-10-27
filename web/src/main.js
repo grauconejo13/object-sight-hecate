@@ -1,6 +1,9 @@
 import "./style.css";
 import { PersonTracks } from "./person-tracks.js";
 import { createFieldEvidenceLog } from "./field-evidence.js";
+import {
+  FRAME_SIZES, INTERVALS_MS, caption, createDevicePoller, describeDeviceStatus, pickAlertToSpeak, settingsFromForm,
+} from "./device-mode.js";
 
 const video = document.querySelector("#camera");
 const canvas = document.querySelector("#snapshot");
@@ -23,6 +26,16 @@ const backStatus = document.querySelector("#back-status");
 const exportEvidenceButton = document.querySelector("#export-evidence");
 const evidenceCount = document.querySelector("#evidence-count");
 const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const sourcePhoneButton = document.querySelector("#source-phone");
+const sourceEsp32Button = document.querySelector("#source-esp32");
+const deviceFrame = document.querySelector("#device-frame");
+const deviceWatchButton = document.querySelector("#device-watch");
+const deviceSettingsOpen = document.querySelector("#device-settings-open");
+const deviceSettingsDialog = document.querySelector("#device-settings");
+const deviceSettingsForm = document.querySelector("#device-settings-form");
+const deviceSettingsStatus = document.querySelector("#device-settings-status");
+const deviceSettingsClose = document.querySelector("#device-settings-close");
+const qualityValue = document.querySelector("#quality-value");
 
 let stream = null;
 let cameraFacing = "environment";
@@ -362,13 +375,13 @@ function drawLiveDetections(items, imageWidth, imageHeight) {
     const x = offsetX + x1 * scale;
     const y = offsetY + y1 * scale;
     const track = personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === item);
-    const focused = backMode && track?.id === focusedId;
+    const focused = (backMode && track?.id === focusedId) || item.highlight;
     ctx.strokeStyle = focused ? "#ffcb82" : "#86dcc8";
     ctx.lineWidth = focused ? 4 : 2;
     ctx.strokeRect(x, y, (x2 - x1) * scale, (y2 - y1) * scale);
-    const label = track
+    const label = item.caption ?? (track
       ? `person #${track.id} · ${track.motion} · ${Math.round(item.confidence * 100)}%`
-      : `${item.label} ${Math.round(item.confidence * 100)}%`;
+      : `${item.label} ${Math.round(item.confidence * 100)}%`);
     const labelY = y >= fontSize + 10 ? y - fontSize - 9 : y;
     const safeLabelY = labelY < 65 ? Math.max(65, y + 6) : labelY;
     ctx.fillStyle = "#0b1619";
@@ -534,5 +547,211 @@ listenButton.addEventListener("click", () => {
   }
 });
 
+// --- Wearable ESP32 camera -------------------------------------------------
+
+const SOURCE_KEY = "hecate.source";
+let source = "phone";
+let deviceSnapshot = null;
+let deviceSettingsDirty = false;
+let lastDeviceAlertId = 0;
+let lastDeviceSpokenAt = 0;
+let deviceFrameUrl = null;
+let wakeLock = null;
+
+const devicePoller = createDevicePoller({
+  apiBase,
+  onSnapshot: handleDeviceSnapshot,
+  onFrame: showDeviceFrame,
+  onError: (error) => setStatus(`Can't reach the backend: ${error.message}. Is Tailscale on?`),
+});
+
+for (const option of FRAME_SIZES) deviceSettingsForm.frame_size.add(new Option(option.label, option.value));
+for (const option of INTERVALS_MS) deviceSettingsForm.interval_ms.add(new Option(option.label, String(option.value)));
+
+function setSource(next) {
+  if (next === source) return;
+  if (next === "esp32") {
+    stopCamera();
+  } else {
+    stopDeviceWatch();
+    deviceFrame.hidden = true;
+  }
+  source = next;
+  document.body.dataset.source = next;
+  sourcePhoneButton.setAttribute("aria-checked", String(next === "phone"));
+  sourceEsp32Button.setAttribute("aria-checked", String(next === "esp32"));
+  placeholder.hidden = next === "esp32" && !deviceFrame.hidden;
+  placeholder.textContent = next === "esp32"
+    ? "Tap Watch ESP32 cam to see the wearable camera."
+    : "Camera is off. Tap Start camera to begin.";
+  badge.textContent = next === "esp32" ? "ESP32 CAM · NOT WATCHING" : "LIVE PREVIEW · NO AUTO UPLOAD";
+  list.replaceChildren();
+  setStatus(next === "esp32" ? "ESP32 cam selected. Tap Watch to start." : "Phone camera selected.");
+  try { localStorage.setItem(SOURCE_KEY, next); } catch { /* storage unavailable */ }
+}
+
+async function holdScreenAwake(on) {
+  try {
+    if (on && "wakeLock" in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (!on && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch { /* Wake Lock is best-effort; speech still works while the page is visible. */ }
+}
+
+function startDeviceWatch() {
+  if (!apiBase) {
+    setStatus("Set VITE_API_URL to your backend URL before deploying.");
+    return;
+  }
+  speakToggle.checked = true;
+  resetLiveSpeech();
+  // Speaking inside the tap unlocks speech on mobile browsers for later alerts.
+  say("Hecate watching.");
+  lastDeviceSpokenAt = 0;
+  devicePoller.start();
+  holdScreenAwake(true);
+  deviceWatchButton.setAttribute("aria-pressed", "true");
+  deviceWatchButton.textContent = "Stop watching";
+  badge.textContent = "ESP32 CAM · CONNECTING";
+  setStatus("Connecting to the ESP32 cam…");
+}
+
+function stopDeviceWatch() {
+  devicePoller.stop();
+  holdScreenAwake(false);
+  deviceWatchButton.setAttribute("aria-pressed", "false");
+  deviceWatchButton.textContent = "Watch ESP32 cam";
+  deviceWatchButton.setAttribute("aria-label", "Watch ESP32 cam");
+  if (source === "esp32") badge.textContent = "ESP32 CAM · NOT WATCHING";
+  clearOverlay();
+}
+
+function handleDeviceSnapshot(snapshot) {
+  deviceSnapshot = snapshot;
+  const statusText = describeDeviceStatus(snapshot);
+  setStatus(statusText);
+  badge.textContent = snapshot.online
+    ? `ESP32 CAM · ${snapshot.settings.mounting === "forward" ? "FRONT" : "REAR"} · LIVE`
+    : "ESP32 CAM · WAITING";
+  if (deviceSettingsDialog.open && !deviceSettingsDirty) fillDeviceSettings(snapshot.settings);
+
+  const { alert, lastSpokenId } = pickAlertToSpeak(snapshot.alerts, {
+    lastSpokenId: lastDeviceAlertId,
+    lastSpokenAt: lastDeviceSpokenAt,
+  });
+  lastDeviceAlertId = lastSpokenId;
+  if (alert) {
+    say(alert.message);
+    lastDeviceSpokenAt = Date.now();
+  }
+}
+
+function showDeviceFrame(blob, result) {
+  const url = URL.createObjectURL(blob);
+  deviceFrame.onload = () => {
+    if (deviceFrameUrl) URL.revokeObjectURL(deviceFrameUrl);
+    deviceFrameUrl = url;
+    deviceFrame.hidden = false;
+    placeholder.hidden = true;
+    const items = result.observations.map((item) => ({
+      ...item,
+      caption: caption(item),
+      highlight: item.range_trend === "approaching" && item.samples >= 4,
+    }));
+    drawLiveDetections(items, result.width, result.height);
+    list.replaceChildren(...items.slice(0, 12).map((item) => {
+      const row = document.createElement("li");
+      row.textContent = `${item.caption} · ${item.position}`;
+      return row;
+    }));
+  };
+  deviceFrame.src = url;
+  evidenceLog.recordAnalysis({ mode: "esp32", result });
+  updateEvidenceExport();
+}
+
+function fillDeviceSettings(settings) {
+  const form = deviceSettingsForm;
+  form.mounting.value = settings.mounting;
+  form.frame_size.value = settings.frame_size;
+  form.interval_ms.value = String(settings.interval_ms);
+  form.jpeg_quality.value = String(settings.jpeg_quality);
+  form.vflip.checked = settings.vflip;
+  form.hmirror.checked = settings.hmirror;
+  form.paused.checked = settings.paused;
+  qualityValue.textContent = `(${settings.jpeg_quality})`;
+}
+
+async function openDeviceSettings() {
+  deviceSettingsDirty = false;
+  deviceSettingsStatus.textContent = "Loading current settings…";
+  deviceSettingsDialog.showModal();
+  try {
+    const response = await fetch(`${apiBase}/v1/esp32/latest`);
+    const snapshot = await response.json();
+    if (!response.ok) throw new Error(snapshot.detail || `HTTP ${response.status}`);
+    if (!deviceSettingsDirty) fillDeviceSettings(snapshot.settings);
+    deviceSettingsStatus.textContent = describeDeviceStatus(snapshot);
+  } catch (error) {
+    deviceSettingsStatus.textContent = `Can't load settings: ${error.message}`;
+  }
+}
+
+async function saveDeviceSettings(event) {
+  event.preventDefault();
+  const form = deviceSettingsForm;
+  const settings = settingsFromForm({
+    mounting: form.mounting.value,
+    frame_size: form.frame_size.value,
+    interval_ms: form.interval_ms.value,
+    jpeg_quality: form.jpeg_quality.value,
+    vflip: form.vflip.checked,
+    hmirror: form.hmirror.checked,
+    paused: form.paused.checked,
+  });
+  deviceSettingsStatus.textContent = "Saving…";
+  try {
+    const response = await fetch(`${apiBase}/v1/esp32/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    deviceSettingsDirty = false;
+    fillDeviceSettings(data.settings);
+    deviceSettingsStatus.textContent = data.settings.paused
+      ? "Saved. The camera pauses after its current frame."
+      : "Saved. The camera applies this on its next frame.";
+  } catch (error) {
+    deviceSettingsStatus.textContent = `Couldn't save: ${error.message}`;
+  }
+}
+
+sourcePhoneButton.addEventListener("click", () => setSource("phone"));
+sourceEsp32Button.addEventListener("click", () => setSource("esp32"));
+deviceWatchButton.addEventListener("click", () => (devicePoller.running ? stopDeviceWatch() : startDeviceWatch()));
+deviceSettingsOpen.addEventListener("click", openDeviceSettings);
+deviceSettingsClose.addEventListener("click", () => deviceSettingsDialog.close());
+deviceSettingsForm.addEventListener("input", () => {
+  deviceSettingsDirty = true;
+  qualityValue.textContent = `(${deviceSettingsForm.jpeg_quality.value})`;
+});
+deviceSettingsForm.addEventListener("submit", saveDeviceSettings);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && devicePoller.running) holdScreenAwake(true);
+});
+
+try {
+  if (localStorage.getItem(SOURCE_KEY) === "esp32") setSource("esp32");
+} catch { /* storage unavailable */ }
+
 updateEvidenceExport();
-window.addEventListener("pagehide", stopCamera);
+window.addEventListener("pagehide", () => {
+  stopCamera();
+  stopDeviceWatch();
+});
