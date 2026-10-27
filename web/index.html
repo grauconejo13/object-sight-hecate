@@ -27,6 +27,11 @@
         <canvas id="overlay" aria-hidden="true"></canvas>
         <p id="camera-placeholder" class="placeholder">Camera is off. Tap Start camera to begin.</p>
         <span class="badge">LIVE PREVIEW · NO AUTO UPLOAD</span>
+        <div id="briefing" class="briefing" role="status" aria-live="polite" hidden>
+          <p id="briefing-text"></p>
+          <p id="briefing-tag" class="briefing-tag"></p>
+          <button id="briefing-close" class="briefing-close" type="button" aria-label="Dismiss briefing" title="Dismiss briefing">×</button>
+        </div>
         <p id="camera-status" class="camera-status" aria-live="polite">Ready when you are.</p>
         <button id="export-evidence" class="evidence-control" type="button" disabled aria-label="Download field-test evidence" title="Download field-test evidence">Export evidence</button>
         <p id="evidence-count" class="evidence-count" aria-live="polite">0 field-test entries recorded locally.</p>
@@ -42,6 +47,7 @@
           <button id="listen-command" class="control-button phone-only" type="button" disabled aria-label="Tap to speak a command" title="Tap to speak a command">Tap to speak a command</button>
           <button id="device-watch" class="control-button device-only" type="button" aria-pressed="false" aria-label="Watch ESP32 cam" title="Watch ESP32 cam">Watch ESP32 cam</button>
           <button id="device-settings-open" class="control-button device-only" type="button" aria-label="Camera settings" title="Camera settings">Camera settings</button>
+          <button id="ask-hecate" class="control-button" type="button" aria-label="Ask Hecate for a scene briefing" title="Ask Hecate for a scene briefing">Ask Hecate</button>
           <label class="voice-control" title="Speak detections"><input id="voice" type="checkbox" /><span>Speak detections</span></label>
         </div>
       </section>

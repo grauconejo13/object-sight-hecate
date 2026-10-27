@@ -277,6 +277,18 @@ class DeviceSession:
         with self._lock:
             return None if self._jpeg is None else (self._seq, self._jpeg)
 
+    def briefing_context(self, window_s: float = 30.0) -> dict[str, Any]:
+        """Latest observations plus recent local alerts, for the optional scene briefing."""
+        with self._lock:
+            now = self._clock()
+            age = None if self._last_seen is None else now - self._last_seen
+            return {
+                "online": age is not None and age <= ONLINE_WINDOW_S and not self.settings.paused,
+                "mounting": self.settings.mounting,
+                "observations": list(self._result["observations"]) if self._result else [],
+                "recent_alerts": [dict(a) for a in self._alerts if now - a["at"] <= window_s],
+            }
+
     def snapshot(self, after_alert_id: int = 0) -> dict[str, Any]:
         with self._lock:
             now = self._clock()

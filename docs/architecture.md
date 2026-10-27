@@ -94,14 +94,14 @@ Potential responses:
 
 The purpose is not cosmetic enhancement; it is maintaining useful perception when conditions change.
 
-## Phase 7 — AWS / Agentic Layer
+## Phase 7 — Cloud Reasoning Layer (NVIDIA Nemotron on Nebius Token Factory)
 
 ```text
 local vision pipeline
       ↓
 structured event
       ↓
-AWS service / agent
+Nemotron on Nebius Token Factory (implemented: scene briefing, see NEBIUS.md)
       ├── request another observation
       ├── summarize evidence
       ├── ask for human confirmation

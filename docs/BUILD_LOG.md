@@ -112,6 +112,26 @@ Milestone 1 completed and was merged into `main` before Milestone 2 began.
 - Reserved Hecate as the working name for the future multi-view perception architecture.
 - No feature implementation started.
 
+## 2026-10-27 — Nemotron scene briefing
+
+**Goal**
+
+- Add an on-demand, cautious one-sentence scene summary using NVIDIA Nemotron on Nebius Token Factory, without slowing live detection.
+
+**Built / changed**
+
+- `briefing.py`: structured facts from detections, tracks and recent alerts (no images); Token Factory client configured by environment; local guard against identity, intent, danger, distance and invented directions; deterministic local fallback; 10 s cache.
+- `/v1/briefing` and `/v1/briefing/status` endpoints.
+- Web app: Ask Hecate (✦) button in both camera modes, briefing panel with provenance tag, spoken result, visible "Nebius unavailable" state.
+
+**Evidence / measurements**
+
+- 59 Python and 13 web tests pass, all with a mocked Token Factory. UI checked headlessly with Nebius on and off. Not yet run against the live API.
+
+**Next step**
+
+- Set `NEBIUS_API_KEY` on the laptop, run real briefings outdoors, and note latency and any guard rejections here.
+
 ## 2026-10-27 — Wearable ESP32 mode
 
 **Goal**
