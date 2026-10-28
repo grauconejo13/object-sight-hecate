@@ -102,10 +102,14 @@ The Token Factory client is mocked in tests; no test calls the real API.
 
 ## Built during the hackathon
 
-Hecate existed before the submission period as a single-camera prototype: OpenCV 5 + YOLO detection and tracking, clock-direction mapping, temporal motion events, and a phone field-test page (through PR #13). Added for this submission:
+Hecate was created entirely within the submission period (Aug 26 – Oct 30, 2026); the first commit is from Sep 14, 2026. The work, in order:
 
-- **NVIDIA Nemotron scene briefing on Nebius Token Factory** with object-grounding guardrails, local fallback, and visible provenance in the app (PR #15).
-- **Wearable ESP32 camera mode:** push firmware, token-protected ingest, server-side tracking, rear-facing clock directions, local alert rules, and the phone app's camera toggle and remote settings (PR #14).
+- **Single-camera perception (Sep):** OpenCV 5 + Ultralytics YOLO detection and tracking, wearer-relative clock directions, unit tests.
+- **Temporal awareness (Sep):** per-track motion, view-size trend, crossing detection, and a structured spatial-event format.
+- **Phone field-test app (Sep–Oct):** live analysis from the phone camera, spoken detections, Have my back with person focus, evidence export.
+- **Wearable ESP32 camera (Oct):** push firmware over the phone's hotspot, token-protected ingest, server-side tracking, rear-facing directions, local alert rules, remote camera settings confirmed by the device.
+- **NVIDIA Nemotron scene briefing on Nebius Token Factory (Oct):** structured facts only, a local guard against invented objects, directions, counts, identity, intent, danger, and distance, and visible provenance in the app.
+- **Product experience (Oct):** the field-instrument interface, first-run intro, sound check, and vibration on warnings.
 
 ## Design principles
 
