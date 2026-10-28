@@ -132,3 +132,27 @@ export function createDevicePoller({
     },
   };
 }
+
+const CAMERA_FIELDS = ["frame_size", "jpeg_quality", "interval_ms", "vflip", "hmirror", "paused"];
+const FIELD_NAMES = {
+  frame_size: "resolution", jpeg_quality: "quality", interval_ms: "frame rate",
+  vflip: "flip", hmirror: "mirror", paused: "pause",
+};
+
+/**
+ * Compare what the phone saved with what the camera reports it is using.
+ * Returns { state: "applied" | "waiting" | "no-report" | "stuck", text }.
+ */
+export function applyStatus({ saved, applied, savedAt, now = Date.now(), graceMs = 10000 }) {
+  const waited = now - savedAt;
+  if (!applied) {
+    return waited < graceMs
+      ? { state: "waiting", text: "Saved. Waiting for the camera to apply it…" }
+      : { state: "no-report", text: "Saved on the backend, but the camera isn't reporting its settings. Reflash the latest firmware so changes can be confirmed." };
+  }
+  const different = CAMERA_FIELDS.filter((field) => saved[field] !== applied[field]);
+  if (!different.length) return { state: "applied", text: "Camera applied the new settings ✓" };
+  if (waited < graceMs) return { state: "waiting", text: "Saved. Waiting for the camera to apply it…" };
+  const names = different.map((field) => FIELD_NAMES[field]).join(", ");
+  return { state: "stuck", text: `Camera hasn't applied: ${names}. Check its Serial Monitor for errors.` };
+}

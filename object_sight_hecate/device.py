@@ -84,6 +84,28 @@ class DeviceSettings:
         }
 
 
+def parse_applied(header: str | None) -> dict[str, Any] | None:
+    """Parse the firmware's X-Hecate-Applied header: 'VGA;12;400;0;0;0'."""
+    if not header:
+        return None
+    parts = header.strip().split(";")
+    if len(parts) != 6 or parts[0] not in FRAME_SIZES:
+        return None
+    try:
+        quality, interval = int(parts[1]), int(parts[2])
+        flags = [part == "1" for part in parts[3:]]
+    except ValueError:
+        return None
+    return {
+        "frame_size": parts[0],
+        "jpeg_quality": quality,
+        "interval_ms": interval,
+        "vflip": flags[0],
+        "hmirror": flags[1],
+        "paused": flags[2],
+    }
+
+
 def wearer_direction(normalized_x: float, mounting: str) -> tuple[str, int]:
     """Map image x (0 = image left) to a direction around the wearer.
 
@@ -134,8 +156,16 @@ class DeviceSession:
         self._next_alert_id = 1
         self._alerted: dict[tuple[int, str], float] = {}
         self._last_alert_at = float("-inf")
+        self._applied: dict[str, Any] | None = None
 
     # --- device side -----------------------------------------------------
+
+    def report_applied(self, header: str | None) -> None:
+        """Remember the settings the camera says it is using (newer firmware only)."""
+        applied = parse_applied(header)
+        if applied is not None:
+            with self._lock:
+                self._applied = applied
 
     def heartbeat(self) -> DeviceSettings:
         with self._lock:
@@ -303,6 +333,7 @@ class DeviceSession:
                 "last_seen_s": age,
                 "fps": fps,
                 "settings": self.settings.as_dict(),
+                "applied": self._applied,
                 "result": self._result,
                 "alerts": [
                     {k: v for k, v in alert.items() if k != "at"}

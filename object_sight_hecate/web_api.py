@@ -137,6 +137,7 @@ async def device_frame(request: Request, response: Response) -> dict:
     require_device_token(request)
     body = await read_jpeg_body(request)
     session = get_device_session()
+    session.report_applied(request.headers.get("x-hecate-applied"))
     try:
         settings = await run_in_threadpool(session.ingest, body)
     except ValueError as exc:
@@ -149,7 +150,9 @@ async def device_frame(request: Request, response: Response) -> dict:
 def device_settings(request: Request, response: Response) -> dict:
     """Heartbeat while paused: the ESP32 learns when to resume without sending frames."""
     require_device_token(request)
-    settings = get_device_session().heartbeat()
+    session = get_device_session()
+    session.report_applied(request.headers.get("x-hecate-applied"))
+    settings = session.heartbeat()
     response.headers.update(settings.as_headers())
     return {"ok": True, "settings": settings.as_dict()}
 
