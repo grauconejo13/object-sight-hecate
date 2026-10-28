@@ -3,99 +3,147 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#101523" />
-    <title>Hecate · Field Test</title>
+    <meta name="theme-color" content="#07111a" />
+    <title>Hecate · Field View</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&display=swap" />
   </head>
-  <body data-source="phone">
-    <main class="shell">
-      <header class="header">
-        <p class="eyebrow">OBJECT SIGHT / FIELD TEST</p>
-        <div class="title-row">
-          <h1>Hecate<span class="star">✦</span></h1>
+  <body data-source="phone" data-camera="off" data-back="off" data-live="off">
+    <main class="app-shell">
+      <section class="field-view" aria-label="Hecate field camera">
+        <header class="topbar">
+          <h1 class="brand"><span class="brand-mark" aria-hidden="true">✦</span>HECATE</h1>
           <div class="source-toggle" role="radiogroup" aria-label="Camera source">
             <button id="source-phone" type="button" role="radio" aria-checked="true">Phone</button>
             <button id="source-esp32" type="button" role="radio" aria-checked="false">ESP32 cam</button>
           </div>
-        </div>
-        <p class="subtitle">Point the camera, capture a frame, and inspect what the vision model sees.</p>
-      </header>
+        </header>
 
-      <section class="viewer" aria-label="Camera preview">
-        <video id="camera" autoplay muted playsinline></video>
-        <canvas id="snapshot" hidden></canvas>
-        <img id="device-frame" alt="Latest frame from the wearable ESP32 camera" hidden />
-        <canvas id="overlay" aria-hidden="true"></canvas>
-        <p id="camera-placeholder" class="placeholder">Camera is off. Tap Start camera to begin.</p>
-        <span class="badge">LIVE PREVIEW · NO AUTO UPLOAD</span>
-        <div id="briefing" class="briefing" role="status" aria-live="polite" hidden>
-          <p id="briefing-text"></p>
-          <p id="briefing-tag" class="briefing-tag"></p>
+        <div class="scene viewer" aria-label="Camera view">
+          <video id="camera" autoplay muted playsinline></video>
+          <canvas id="snapshot" hidden></canvas>
+          <img id="device-frame" alt="Latest frame from the wearable ESP32 camera" hidden />
+          <canvas id="overlay" aria-hidden="true"></canvas>
+          <div class="scanline" aria-hidden="true"></div>
+          <span class="corner corner-a" aria-hidden="true"></span>
+          <span class="corner corner-b" aria-hidden="true"></span>
+          <span class="corner corner-c" aria-hidden="true"></span>
+          <span class="corner corner-d" aria-hidden="true"></span>
+          <p id="camera-placeholder" class="placeholder">Camera is off. Tap Camera to begin.</p>
+          <span class="badge scene-status" role="status">PREVIEW · NO UPLOAD</span>
+        </div>
+
+        <aside id="briefing" class="briefing" role="status" aria-live="polite" hidden>
+          <span class="briefing-icon" aria-hidden="true">✦</span>
+          <div class="briefing-body">
+            <p class="briefing-title">Scene briefing</p>
+            <p id="briefing-text"></p>
+            <p id="briefing-tag" class="origin"></p>
+          </div>
           <button id="briefing-close" class="briefing-close" type="button" aria-label="Dismiss briefing" title="Dismiss briefing">×</button>
-        </div>
-        <p id="camera-status" class="camera-status" aria-live="polite">Ready when you are.</p>
-        <button id="export-evidence" class="evidence-control" type="button" disabled aria-label="Download field-test evidence" title="Download field-test evidence">Export evidence</button>
-        <p id="evidence-count" class="evidence-count" aria-live="polite">0 field-test entries recorded locally.</p>
+        </aside>
 
-        <div class="camera-controls" aria-label="Camera controls">
-          <button id="start" class="control-button phone-only" type="button" aria-label="Start camera" title="Start camera">Start camera</button>
-          <button id="switch" class="control-button phone-only" type="button" disabled aria-label="Use front camera" title="Use front camera">Use front camera</button>
-          <button id="analyze" class="control-button phone-only" type="button" disabled aria-label="Analyze one frame" title="Analyze one frame">Analyze one frame</button>
-          <button id="live" class="control-button phone-only" type="button" disabled aria-label="Start live analysis" title="Start live analysis">Start live analysis</button>
-          <button id="stop" class="control-button phone-only" type="button" disabled aria-label="Stop camera" title="Stop camera">Stop camera</button>
-          <button id="back-mode" class="control-button phone-only" type="button" aria-pressed="false" aria-label="Have my back" title="Have my back">Have my back</button>
-          <button id="focus-person" class="control-button phone-only" type="button" disabled aria-label="Focus person" title="Focus person">Focus person</button>
-          <button id="listen-command" class="control-button phone-only" type="button" disabled aria-label="Tap to speak a command" title="Tap to speak a command">Tap to speak a command</button>
-          <button id="device-watch" class="control-button device-only" type="button" aria-pressed="false" aria-label="Watch ESP32 cam" title="Watch ESP32 cam">Watch ESP32 cam</button>
-          <button id="device-settings-open" class="control-button device-only" type="button" aria-label="Camera settings" title="Camera settings">Camera settings</button>
-          <button id="ask-hecate" class="control-button" type="button" aria-label="Ask Hecate for a scene briefing" title="Ask Hecate for a scene briefing">Ask Hecate</button>
-          <label class="voice-control" title="Speak detections"><input id="voice" type="checkbox" /><span>Speak detections</span></label>
-        </div>
+        <nav class="dock" aria-label="Camera controls">
+          <button id="start" class="control phone-only" type="button" aria-label="Start camera" title="Start camera">
+            <span class="icon" aria-hidden="true"></span><span class="label">Camera</span>
+          </button>
+          <button id="stop" class="control phone-only" type="button" disabled aria-label="Stop camera" title="Stop camera">
+            <span class="icon" aria-hidden="true"></span><span class="label">Stop</span>
+          </button>
+          <button id="live" class="control phone-only" type="button" disabled aria-pressed="false" aria-label="Start live analysis" title="Start live analysis">
+            <span class="icon" aria-hidden="true"></span><span class="label">Live</span>
+          </button>
+          <button id="focus-person" class="control phone-only back-only" type="button" disabled aria-label="Focus person" title="Focus person">
+            <span class="icon" aria-hidden="true"></span><span class="label">Focus</span>
+          </button>
+          <button id="device-watch" class="control device-only" type="button" aria-pressed="false" aria-label="Watch ESP32 cam" title="Watch ESP32 cam">
+            <span class="icon" aria-hidden="true"></span><span class="label">Watch</span>
+          </button>
+          <button id="ask-hecate" class="control" type="button" aria-label="Ask Hecate for a scene briefing" title="Ask Hecate for a scene briefing">
+            <span class="icon" aria-hidden="true"></span><span class="label">Ask</span>
+          </button>
+          <label class="control voice-control" title="Speak alerts and briefings">
+            <input id="voice" type="checkbox" />
+            <span class="icon" aria-hidden="true"></span><span class="label">Sound</span>
+          </label>
+          <button id="device-settings-open" class="control device-only" type="button" aria-label="Camera settings" title="Camera settings">
+            <span class="icon" aria-hidden="true"></span><span class="label">Settings</span>
+          </button>
+          <button id="more-open" class="control" type="button" aria-haspopup="dialog" aria-label="More controls and detections" title="More controls and detections">
+            <span class="icon" aria-hidden="true"></span><span class="label">More</span>
+          </button>
+        </nav>
       </section>
 
-      <dialog id="device-settings" aria-labelledby="device-settings-title">
+      <p id="camera-status" class="hint" aria-live="polite">Watching for what matters.</p>
+
+      <dialog id="more-sheet" class="sheet" aria-labelledby="more-title">
+        <div class="sheet-head">
+          <h2 id="more-title">More</h2>
+          <button id="more-close" class="sheet-close" type="button" aria-label="Close">×</button>
+        </div>
+
+        <section class="sheet-section phone-only" aria-label="Phone camera tools">
+          <h3>Phone camera</h3>
+          <div class="sheet-actions">
+            <button id="back-mode" class="tool" type="button" aria-pressed="false" aria-label="Have my back" title="Have my back"><span class="label">Have my back</span></button>
+            <button id="switch" class="tool" type="button" disabled aria-label="Use front camera" title="Use front camera"><span class="label">Use front camera</span></button>
+            <button id="analyze" class="tool" type="button" disabled aria-label="Analyze one frame" title="Analyze one frame"><span class="label">Analyze one frame</span></button>
+            <button id="listen-command" class="tool" type="button" disabled aria-label="Tap to speak a command" title="Tap to speak a command"><span class="label">Voice command</span></button>
+          </div>
+          <p id="back-status" class="sheet-status" role="status">Off. Camera positions are relative to the rear camera view.</p>
+          <p class="note">Have my back watches through the phone's rear camera and speaks people first. Voice commands: “have my back”, “focus” or “track”, “stop”.</p>
+        </section>
+
+        <section class="sheet-section" aria-label="Detections">
+          <h3>Detections</h3>
+          <p id="status" class="sheet-status">Ready when you are.</p>
+          <ul id="observations"></ul>
+        </section>
+
+        <section class="sheet-section" aria-label="Field evidence">
+          <h3>Field evidence</h3>
+          <div class="sheet-actions">
+            <button id="export-evidence" class="tool" type="button" disabled aria-label="Download field-test evidence" title="Download field-test evidence">Export evidence</button>
+          </div>
+          <p id="evidence-count" class="note" aria-live="polite">0 field-test entries recorded locally.</p>
+        </section>
+
+        <p class="note">Boxes may lag. “Larger” and “smaller” describe size in the camera view, which also changes when the camera moves. Hecate does not measure distance or judge danger.</p>
+      </dialog>
+
+      <dialog id="device-settings" class="sheet" aria-labelledby="device-settings-title">
         <form id="device-settings-form" method="dialog">
-          <h2 id="device-settings-title">ESP32 cam settings</h2>
-          <p id="device-settings-status" class="note" role="status">Changes apply on the camera's next frame.</p>
+          <div class="sheet-head">
+            <h2 id="device-settings-title">ESP32 cam settings</h2>
+            <button id="device-settings-close" class="sheet-close" type="button" aria-label="Close">×</button>
+          </div>
+          <p id="device-settings-status" class="sheet-status" role="status">Changes apply on the camera's next frame.</p>
           <label class="field">Camera faces
             <select name="mounting">
               <option value="backward">Behind me (clipped to back or bag)</option>
               <option value="forward">Ahead of me (chest or strap)</option>
             </select>
           </label>
-          <label class="field">Resolution
-            <select name="frame_size"></select>
-          </label>
-          <label class="field">Frame rate
-            <select name="interval_ms"></select>
-          </label>
-          <label class="field">Image quality <span id="quality-value" class="hint"></span>
+          <div class="field-row">
+            <label class="field">Resolution
+              <select name="frame_size"></select>
+            </label>
+            <label class="field">Frame rate
+              <select name="interval_ms"></select>
+            </label>
+          </div>
+          <label class="field"><span class="field-head">Image quality <span id="quality-value" class="field-value"></span></span>
             <input name="jpeg_quality" type="range" min="8" max="40" step="1" />
             <span class="range-ends"><span>Sharper</span><span>Smaller uploads</span></span>
           </label>
           <label class="check"><input name="vflip" type="checkbox" /> Flip image upside down</label>
           <label class="check"><input name="hmirror" type="checkbox" /> Mirror image left/right</label>
           <label class="check"><input name="paused" type="checkbox" /> Pause camera uploads</label>
-          <div class="dialog-actions">
-            <button id="device-settings-close" type="button" class="secondary">Close</button>
-            <button id="device-settings-save" type="submit" value="save">Save to camera</button>
-          </div>
+          <button id="device-settings-save" class="primary" type="submit" value="save">Save to camera</button>
         </form>
       </dialog>
-
-      <section class="back-controls phone-only" aria-label="Have my back controls">
-        <h2>Have my back</h2>
-        <p>Rear camera view · People first · Approximate screen tracking</p>
-        <p id="back-status" role="status">Off. Camera positions are relative to the rear camera view.</p>
-        <p class="note">Say “have my back”, “focus” or “track”, or “stop” after tapping the command button. Microphone access and browser speech recognition are optional. A highlighted box follows a person while visible; apparent size changes can also come from moving the camera. No measured distance or safety assessment.</p>
-      </section>
-
-      <section class="results" aria-live="polite">
-        <h2>Observation</h2>
-        <p id="status">Ready when you are.</p>
-        <ul id="observations"></ul>
-        <p class="note">Live analysis sends repeated frames while enabled. Person numbers are temporary screen tracks; “larger”, “steady”, and “smaller” describe box size in the camera view, which can change when the camera moves. Boxes may lag. This prototype does not measure distance, detect approach, or assess danger.</p>
-      </section>
-      <footer>Hecate has your back · Experimental vision prototype</footer>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>
