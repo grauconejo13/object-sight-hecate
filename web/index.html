@@ -102,6 +102,17 @@
           <ul id="observations"></ul>
         </section>
 
+        <section class="sheet-section" aria-label="Sound and alerts">
+          <h3>Sound &amp; alerts</h3>
+          <div class="sheet-actions">
+            <button id="sound-test" class="tool" type="button">Test sound</button>
+            <button id="intro-reopen" class="tool" type="button">How Hecate works</button>
+          </div>
+          <label id="vibrate-row" class="check" hidden><input id="vibrate-toggle" type="checkbox" checked /> Vibrate on warnings</label>
+          <p id="sound-status" class="sheet-status" role="status"></p>
+          <p class="note">Alerts play through your phone's audio: the speaker, wired earphones, or Bluetooth earbuds paired with the phone. Keep the app open with the screen on while watching. One earbud or open-ear headphones keep you aware of real sound around you.</p>
+        </section>
+
         <section class="sheet-section" aria-label="Field evidence">
           <h3>Field evidence</h3>
           <div class="sheet-actions">
@@ -111,6 +122,52 @@
         </section>
 
         <p class="note">Boxes may lag. “Larger” and “smaller” describe size in the camera view, which also changes when the camera moves. Hecate does not measure distance or judge danger.</p>
+      </dialog>
+
+      <dialog id="intro" class="intro" aria-labelledby="intro-title">
+        <div id="intro-track" class="intro-track">
+          <section class="intro-slide" aria-roledescription="slide" aria-label="1 of 3">
+            <svg class="intro-art" viewBox="0 0 220 150" aria-hidden="true">
+              <defs><linearGradient id="cone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9df0dc" stop-opacity=".38"/><stop offset="1" stop-color="#9df0dc" stop-opacity="0"/></linearGradient></defs>
+              <path d="M110 62 L36 146 A110 110 0 0 0 184 146 Z" fill="url(#cone)"/>
+              <path d="M36 146 A110 110 0 0 0 184 146" fill="none" stroke="#9df0dc" stroke-width="1.5" stroke-dasharray="3 5"/>
+              <path d="M110 30 V8 M102 16 L110 8 L118 16" fill="none" stroke="#9baebb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <ellipse cx="110" cy="56" rx="22" ry="9" fill="#12242f" stroke="#c7f9e5" stroke-width="1.5"/>
+              <circle cx="110" cy="48" r="10" fill="#0e1c27" stroke="#c7f9e5" stroke-width="1.5"/>
+              <rect x="104" y="62" width="12" height="7" rx="2" fill="#9df0dc"/>
+              <text x="110" y="138" text-anchor="middle" fill="#9df0dc" font-family="DM Mono, monospace" font-size="11">6 O'CLOCK</text>
+            </svg>
+            <h2 id="intro-title">Eyes in the back of your head</h2>
+            <p>A small camera clipped to your bag watches the space behind you while you walk, run, or travel alone.</p>
+          </section>
+          <section class="intro-slide" aria-roledescription="slide" aria-label="2 of 3">
+            <svg class="intro-art" viewBox="0 0 220 150" aria-hidden="true">
+              <path d="M14 82 H86 L96 60 L106 104 L116 82 H206" fill="none" stroke="#9df0dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M14 82 H206" stroke="#9baebb" stroke-opacity=".25" stroke-width="1"/>
+              <rect x="66" y="16" width="88" height="26" rx="13" fill="#12242f" stroke="#9df0dc" stroke-opacity=".5"/>
+              <text x="110" y="33" text-anchor="middle" fill="#c7f9e5" font-family="DM Mono, monospace" font-size="10">PERSON · 6</text>
+              <text x="110" y="134" text-anchor="middle" fill="#b9a8ff" font-family="Manrope, sans-serif" font-size="18">✦</text>
+            </svg>
+            <h2>Quiet until something matters</h2>
+            <p>It speaks only when a person appears behind you, something grows larger in view, or something crosses behind you. Tap ✦ for a one-sentence briefing from NVIDIA Nemotron.</p>
+          </section>
+          <section class="intro-slide" aria-roledescription="slide" aria-label="3 of 3">
+            <svg class="intro-art" viewBox="0 0 220 150" aria-hidden="true">
+              <rect x="70" y="34" width="56" height="92" fill="none" stroke="#9df0dc" stroke-width="2"/>
+              <rect x="70" y="18" width="118" height="16" fill="#9df0dc"/>
+              <text x="76" y="30" fill="#06201c" font-family="DM Mono, monospace" font-size="9">PERSON · 6 O'CLOCK</text>
+              <circle cx="164" cy="96" r="20" fill="#0e1c27" stroke="#ffcb82" stroke-width="1.5"/>
+              <path d="M152 96 Q164 84 176 96 Q164 108 152 96 Z M150 108 L178 84" fill="none" stroke="#ffcb82" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            <h2>It describes, never judges</h2>
+            <p>No faces, no guesses about who someone is or what they want, and no images sent to the cloud. Just where things are around you.</p>
+          </section>
+        </div>
+        <div class="intro-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="intro-actions">
+          <button id="intro-skip" class="link" type="button">Skip</button>
+          <button id="intro-next" class="primary" type="button" autofocus>Next</button>
+        </div>
       </dialog>
 
       <dialog id="device-settings" class="sheet" aria-labelledby="device-settings-title">
