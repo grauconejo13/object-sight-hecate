@@ -5,6 +5,9 @@ import {
   FRAME_SIZES, INTERVALS_MS, applyStatus, caption, createDevicePoller, describeDeviceStatus, pickAlertToSpeak, settingsFromForm,
 } from "./device-mode.js";
 import { askButtonLabel, briefingTag, phoneBriefingRequest } from "./briefing.js";
+import {
+  INTRO_KEY, SOUND_CHECK_TEXT, VIBRATE_KEY, readFlag, soundCheckMessage, supportsVibration, vibrateFor, writeFlag,
+} from "./feedback.js";
 
 const video = document.querySelector("#camera");
 const canvas = document.querySelector("#snapshot");
@@ -39,6 +42,32 @@ const deviceSettingsStatus = document.querySelector("#device-settings-status");
 const deviceSettingsClose = document.querySelector("#device-settings-close");
 const qualityValue = document.querySelector("#quality-value");
 const askButton = document.querySelector("#ask-hecate");
+const saveSettingsButton = document.querySelector("#device-settings-save");
+const moreOpenButton = document.querySelector("#more-open");
+const moreSheet = document.querySelector("#more-sheet");
+const moreCloseButton = document.querySelector("#more-close");
+const soundTestButton = document.querySelector("#sound-test");
+const soundStatus = document.querySelector("#sound-status");
+const vibrateRow = document.querySelector("#vibrate-row");
+const vibrateToggle = document.querySelector("#vibrate-toggle");
+const introDialog = document.querySelector("#intro");
+const introTrack = document.querySelector("#intro-track");
+const introNext = document.querySelector("#intro-next");
+const introSkip = document.querySelector("#intro-skip");
+const introReopen = document.querySelector("#intro-reopen");
+const introDots = [...document.querySelectorAll(".intro-dots span")];
+
+function storage() {
+  try { return window.localStorage; } catch { return undefined; }
+}
+
+// Vibration helps when sound is off or hard to hear. Android Chrome only; hidden elsewhere.
+const canVibrate = supportsVibration(navigator);
+vibrateRow.hidden = !canVibrate;
+vibrateToggle.checked = readFlag(storage(), VIBRATE_KEY, true);
+function buzz(kind) {
+  return vibrateFor(kind, { enabled: canVibrate && vibrateToggle.checked, nav: navigator });
+}
 const briefingPanel = document.querySelector("#briefing");
 const briefingText = document.querySelector("#briefing-text");
 const briefingTagLine = document.querySelector("#briefing-tag");
@@ -103,6 +132,7 @@ function processPersonTracks(items, width, height) {
         && track.motion !== track.lastMotionAnnounced
         && Date.now() - lastSpokenAt >= SPEECH_COOLDOWN_MS) {
       say(`Focused person looks ${track.motion} in the camera view.`);
+      if (track.motion === "larger in view") buzz("warn");
       track.lastMotionAnnounced = track.motion;
       lastSpokenAt = Date.now();
     }
@@ -191,27 +221,35 @@ function downloadEvidence() {
   setStatus(`Downloaded ${evidenceLog.count} field-test entr${evidenceLog.count === 1 ? "y" : "ies"}.`);
 }
 
+// Dock buttons keep an icon span, so change only their visible label.
+function setControl(button, label, description = label) {
+  const labelNode = button.querySelector(".label");
+  if (labelNode) labelNode.textContent = label;
+  else button.textContent = label;
+  button.setAttribute("aria-label", description);
+  button.title = description;
+}
+
 function updateButtons() {
   startButton.disabled = Boolean(stream) || busy || switching;
   switchButton.disabled = !stream || switching;
-  switchButton.textContent = cameraFacing === "environment" ? "Use front camera" : "Use rear camera";
-  switchButton.setAttribute("aria-label", switchButton.textContent);
-  switchButton.title = switchButton.textContent;
+  setControl(switchButton, cameraFacing === "environment" ? "Use front camera" : "Use rear camera");
   analyzeButton.disabled = !stream || busy || live || switching;
   liveButton.disabled = !stream || switching;
-  liveButton.textContent = live ? "Stop live analysis" : "Start live analysis";
+  setControl(liveButton, live ? "Pause" : "Live", live ? "Stop live analysis" : "Start live analysis");
   liveButton.setAttribute("aria-pressed", String(live));
-  liveButton.setAttribute("aria-label", liveButton.textContent);
-  liveButton.title = liveButton.textContent;
   stopButton.disabled = !stream || switching;
   backButton.disabled = switching;
-  backButton.textContent = backMode ? "Stop Have my back" : "Have my back";
+  setControl(backButton, backMode ? "Stop Have my back" : "Have my back");
   backButton.setAttribute("aria-pressed", String(backMode));
-  backButton.setAttribute("aria-label", backButton.textContent);
-  backButton.title = backButton.textContent;
   focusButton.disabled = !backMode || !live || !personTracks.tracks.some((track) => track.missed === 0 && track.samples.length >= 2);
   listenButton.disabled = !SpeechRecognition || !stream || listening || switching;
   exportEvidenceButton.disabled = evidenceLog.count === 0;
+  // Layout state for the dock (see the data-* rules in style.css).
+  const body = document.body;
+  body.dataset.camera = stream ? "on" : "off";
+  body.dataset.back = backMode ? "on" : "off";
+  if (body.dataset.source === "phone") body.dataset.live = live ? "on" : "off";
 }
 
 function clearOverlay() {
@@ -229,7 +267,7 @@ function stopLiveAnalysis() {
   currentRequest = null;
   busy = false;
   clearOverlay();
-  badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
+  badge.textContent = "PREVIEW · NO UPLOAD";
   updateButtons();
 }
 
@@ -241,7 +279,7 @@ function stopCamera() {
   placeholder.hidden = false;
   canvas.hidden = true;
   clearOverlay();
-  badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
+  badge.textContent = "PREVIEW · NO UPLOAD";
   updateButtons();
 }
 
@@ -263,7 +301,7 @@ async function openCamera(requireFacing = false) {
   placeholder.hidden = true;
   canvas.hidden = true;
   clearOverlay();
-  badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
+  badge.textContent = "PREVIEW · NO UPLOAD";
 }
 
 startButton.addEventListener("click", async () => {
@@ -326,7 +364,7 @@ function captureJpeg(showSnapshot) {
   canvas.height = Math.round(height * scale);
   canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
   canvas.hidden = !showSnapshot;
-  badge.textContent = showSnapshot ? "ANALYZING CAPTURED FRAME" : "LIVE ANALYSIS · FRAMES SENT REPEATEDLY";
+  badge.textContent = showSnapshot ? "ANALYZING FRAME" : "LIVE ANALYSIS · PHONE";
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => blob ? resolve(blob) : reject(new Error("Unable to capture JPEG.")),
@@ -336,12 +374,35 @@ function captureJpeg(showSnapshot) {
   });
 }
 
+const TAG_FONT = "'DM Mono', ui-monospace, monospace";
+const AQUA = "#9df0dc";
+const AMBER = "#ffcb82";
+
+function strokeTarget(ctx, x, y, width, height, highlight) {
+  ctx.save();
+  ctx.strokeStyle = highlight ? AMBER : AQUA;
+  ctx.lineWidth = highlight ? 3 : 2;
+  ctx.shadowColor = highlight ? "rgba(255, 203, 130, 0.45)" : "rgba(157, 240, 220, 0.35)";
+  ctx.shadowBlur = 12;
+  ctx.strokeRect(x, y, width, height);
+  ctx.restore();
+}
+
+function drawTag(ctx, label, x, y, fontSize, highlight, maxRight) {
+  const padX = 7;
+  const width = Math.min(ctx.measureText(label).width + padX * 2, maxRight - x);
+  ctx.fillStyle = highlight ? AMBER : AQUA;
+  ctx.fillRect(x, y, width, fontSize + 10);
+  ctx.fillStyle = "#06201c";
+  ctx.fillText(label, x + padX, y + fontSize + 2, width - padX * 2);
+}
+
 function drawDetections(items, imageWidth, imageHeight) {
   const ctx = canvas.getContext("2d");
   const scaleX = canvas.width / imageWidth;
   const scaleY = canvas.height / imageHeight;
   const fontSize = Math.max(13, Math.round(canvas.width / 55));
-  ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+  ctx.font = `500 ${fontSize}px ${TAG_FONT}`;
   ctx.lineWidth = Math.max(2, Math.round(canvas.width / 400));
 
   for (const item of items.slice(0, 12)) {
@@ -350,18 +411,12 @@ function drawDetections(items, imageWidth, imageHeight) {
     const y = y1 * scaleY;
     const width = (x2 - x1) * scaleX;
     const height = (y2 - y1) * scaleY;
-    ctx.strokeStyle = "#86dcc8";
-    ctx.strokeRect(x, y, width, height);
-
-    const label = `${item.label} ${Math.round(item.confidence * 100)}%`;
-    const labelWidth = ctx.measureText(label).width + 12;
+    strokeTarget(ctx, x, y, width, height, false);
+    const label = `${item.label} ${Math.round(item.confidence * 100)}%`.toUpperCase();
     const labelY = y >= fontSize + 12 ? y - fontSize - 10 : y;
-    ctx.fillStyle = "#0b1619";
-    ctx.fillRect(x, labelY, labelWidth, fontSize + 10);
-    ctx.fillStyle = "#e8eefb";
-    ctx.fillText(label, x + 6, labelY + fontSize + 1);
+    drawTag(ctx, label, x, labelY, fontSize, false, canvas.width);
   }
-  badge.textContent = "LAST ANALYZED FRAME · TAP ANALYZE TO REFRESH";
+  badge.textContent = "LAST FRAME · ANALYZED";
 }
 
 function drawLiveDetections(items, imageWidth, imageHeight) {
@@ -375,27 +430,22 @@ function drawLiveDetections(items, imageWidth, imageHeight) {
   const scale = Math.min(rect.width / imageWidth, rect.height / imageHeight);
   const offsetX = (rect.width - imageWidth * scale) / 2;
   const offsetY = (rect.height - imageHeight * scale) / 2;
-  const fontSize = Math.max(13, Math.round(rect.width / 45));
-  ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
-  ctx.lineWidth = 2;
+  const fontSize = Math.max(11, Math.round(rect.width / 34));
+  ctx.font = `500 ${fontSize}px ${TAG_FONT}`;
   for (const item of items.slice(0, 12)) {
     const [x1, y1, x2, y2] = item.box;
     const x = offsetX + x1 * scale;
     const y = offsetY + y1 * scale;
     const track = personTracks.tracks.find((entry) => entry.missed === 0 && entry.item === item);
     const focused = (backMode && track?.id === focusedId) || item.highlight;
-    ctx.strokeStyle = focused ? "#ffcb82" : "#86dcc8";
-    ctx.lineWidth = focused ? 4 : 2;
-    ctx.strokeRect(x, y, (x2 - x1) * scale, (y2 - y1) * scale);
-    const label = item.caption ?? (track
+    strokeTarget(ctx, x, y, (x2 - x1) * scale, (y2 - y1) * scale, focused);
+    const label = (item.caption ?? (track
       ? `person #${track.id} · ${track.motion} · ${Math.round(item.confidence * 100)}%`
-      : `${item.label} ${Math.round(item.confidence * 100)}%`);
-    const labelY = y >= fontSize + 10 ? y - fontSize - 9 : y;
-    const safeLabelY = labelY < 65 ? Math.max(65, y + 6) : labelY;
-    ctx.fillStyle = "#0b1619";
-    ctx.fillRect(x, safeLabelY, Math.min(ctx.measureText(label).width + 12, rect.width - x), fontSize + 9);
-    ctx.fillStyle = "#e8eefb";
-    ctx.fillText(label, x + 6, safeLabelY + fontSize, rect.width - x - 12);
+      : `${item.label} ${Math.round(item.confidence * 100)}%`)).toUpperCase();
+    const labelY = y >= fontSize + 12 ? y - fontSize - 10 : y;
+    // Keep tags clear of the status pill at the top of the scene.
+    const safeLabelY = labelY < 50 ? Math.max(50, y + 4) : labelY;
+    drawTag(ctx, label, x, safeLabelY, fontSize, focused, rect.width);
   }
 }
 
@@ -464,7 +514,7 @@ async function analyzeFrame(isLive = false) {
     if (request.signal.aborted) return;
     canvas.hidden = true;
     clearOverlay();
-    badge.textContent = "LIVE PREVIEW · NO AUTO UPLOAD";
+    badge.textContent = "PREVIEW · NO UPLOAD";
     setStatus(`Analysis failed: ${error.message}`);
     if (isLive) stopLiveAnalysis();
   } finally {
@@ -598,9 +648,10 @@ function setSource(next) {
   sourceEsp32Button.setAttribute("aria-checked", String(next === "esp32"));
   placeholder.hidden = next === "esp32" && !deviceFrame.hidden;
   placeholder.textContent = next === "esp32"
-    ? "Tap Watch ESP32 cam to see the wearable camera."
-    : "Camera is off. Tap Start camera to begin.";
-  badge.textContent = next === "esp32" ? "ESP32 CAM · NOT WATCHING" : "LIVE PREVIEW · NO AUTO UPLOAD";
+    ? "Tap Watch to see the wearable camera."
+    : "Camera is off. Tap Camera to begin.";
+  document.body.dataset.live = "off";
+  badge.textContent = next === "esp32" ? "ESP32 CAM · NOT WATCHING" : "PREVIEW · NO UPLOAD";
   list.replaceChildren();
   setStatus(next === "esp32" ? "ESP32 cam selected. Tap Watch to start." : "Phone camera selected.");
   try { localStorage.setItem(SOURCE_KEY, next); } catch { /* storage unavailable */ }
@@ -631,7 +682,7 @@ function startDeviceWatch() {
   devicePoller.start();
   holdScreenAwake(true);
   deviceWatchButton.setAttribute("aria-pressed", "true");
-  deviceWatchButton.textContent = "Stop watching";
+  setControl(deviceWatchButton, "Watching", "Stop watching the ESP32 cam");
   badge.textContent = "ESP32 CAM · CONNECTING";
   setStatus("Connecting to the ESP32 cam…");
 }
@@ -640,8 +691,8 @@ function stopDeviceWatch() {
   devicePoller.stop();
   holdScreenAwake(false);
   deviceWatchButton.setAttribute("aria-pressed", "false");
-  deviceWatchButton.textContent = "Watch ESP32 cam";
-  deviceWatchButton.setAttribute("aria-label", "Watch ESP32 cam");
+  setControl(deviceWatchButton, "Watch", "Watch ESP32 cam");
+  if (source === "esp32") document.body.dataset.live = "off";
   if (source === "esp32") badge.textContent = "ESP32 CAM · NOT WATCHING";
   clearOverlay();
 }
@@ -652,12 +703,19 @@ function handleDeviceSnapshot(snapshot) {
   if (pendingApply) {
     const apply = applyStatus({ saved: pendingApply.settings, applied: snapshot.applied, savedAt: pendingApply.at });
     if (deviceSettingsDialog.open) deviceSettingsStatus.textContent = apply.text;
+    if (apply.state === "applied" && saveSettingsButton.dataset.state === "saved"
+        && saveSettingsButton.textContent !== "Camera applied ✓") {
+      setSaveButton("saved", "Camera applied ✓");
+    } else if ((apply.state === "stuck" || apply.state === "no-report") && saveSettingsButton.dataset.state === "saved") {
+      setSaveButton("error", "Not confirmed by camera");
+    }
     statusText = apply.text;
     // Keep the confirmation visible briefly, then return to the live status.
     if (apply.state !== "waiting" && Date.now() - pendingApply.at > 15000) pendingApply = null;
     else if (apply.state === "applied") pendingApply.at = Math.min(pendingApply.at, Date.now() - 11000);
   }
   setStatus(statusText);
+  document.body.dataset.live = snapshot.online && !snapshot.settings.paused ? "on" : "off";
   badge.textContent = snapshot.online
     ? `ESP32 CAM · ${snapshot.settings.mounting === "forward" ? "FRONT" : "REAR"} · LIVE`
     : "ESP32 CAM · WAITING";
@@ -669,6 +727,7 @@ function handleDeviceSnapshot(snapshot) {
   lastDeviceAlertId = lastSpokenId;
   if (alert) {
     say(alert.message);
+    if (alert.priority === "warn") buzz("warn");
     lastDeviceSpokenAt = Date.now();
   }
 }
@@ -711,6 +770,7 @@ function fillDeviceSettings(settings) {
 
 async function openDeviceSettings() {
   deviceSettingsDirty = false;
+  setSaveButton("idle", "Save to camera");
   deviceSettingsStatus.textContent = "Loading current settings…";
   deviceSettingsDialog.showModal();
   try {
@@ -721,6 +781,18 @@ async function openDeviceSettings() {
     deviceSettingsStatus.textContent = describeDeviceStatus(snapshot);
   } catch (error) {
     deviceSettingsStatus.textContent = `Can't load settings: ${error.message}`;
+  }
+}
+
+// The Save button itself shows progress, so a tap never looks ignored.
+let saveButtonTimer = null;
+function setSaveButton(state, text) {
+  clearTimeout(saveButtonTimer);
+  saveSettingsButton.dataset.state = state;
+  saveSettingsButton.textContent = text;
+  saveSettingsButton.disabled = state === "saving";
+  if (state === "saved" || state === "error") {
+    saveButtonTimer = setTimeout(() => setSaveButton("idle", "Save to camera"), 3500);
   }
 }
 
@@ -737,6 +809,7 @@ async function saveDeviceSettings(event) {
     paused: form.paused.checked,
   });
   deviceSettingsStatus.textContent = "Saving…";
+  setSaveButton("saving", "Saving…");
   try {
     const response = await fetch(`${apiBase}/v1/esp32/settings`, {
       method: "PUT",
@@ -751,8 +824,14 @@ async function saveDeviceSettings(event) {
     deviceSettingsStatus.textContent = devicePoller.running
       ? "Saved. Waiting for the camera to apply it…"
       : "Saved. Tap Watch to see when the camera applies it.";
+    clearTimeout(saveButtonTimer);
+    saveSettingsButton.dataset.state = "saved";
+    saveSettingsButton.disabled = false;
+    saveSettingsButton.textContent = devicePoller.running ? "Saved · waiting for camera…" : "Saved ✓";
+    if (!devicePoller.running) setSaveButton("saved", "Saved ✓");
   } catch (error) {
     deviceSettingsStatus.textContent = `Couldn't save: ${error.message}`;
+    setSaveButton("error", "Couldn't save · try again");
   }
 }
 
@@ -769,6 +848,25 @@ for (const type of ["input", "change"]) {
   });
 }
 deviceSettingsForm.addEventListener("submit", saveDeviceSettings);
+
+// More sheet: secondary phone tools, detections list, evidence export.
+moreOpenButton.addEventListener("click", () => moreSheet.showModal());
+moreCloseButton.addEventListener("click", () => moreSheet.close());
+// Actions that change the camera view close the sheet so the result is visible.
+for (const button of [backButton, switchButton, analyzeButton, listenButton]) {
+  button.addEventListener("click", () => moreSheet.close());
+}
+// Tapping the dimmed backdrop closes either sheet.
+for (const sheet of [moreSheet, deviceSettingsDialog]) {
+  sheet.addEventListener("click", (event) => {
+    if (event.target !== sheet) return;
+    // Clicks on the sheet's own padding also target the dialog; only close outside it.
+    const box = sheet.getBoundingClientRect();
+    const inside = event.clientX >= box.left && event.clientX <= box.right
+      && event.clientY >= box.top && event.clientY <= box.bottom;
+    if (!inside) sheet.close();
+  });
+}
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && devicePoller.running) holdScreenAwake(true);
 });
@@ -857,3 +955,61 @@ window.addEventListener("pagehide", () => {
   stopCamera();
   stopDeviceWatch();
 });
+
+// --- Sound check and vibration preference ---------------------------------
+
+soundTestButton.addEventListener("click", () => {
+  const canSpeak = "speechSynthesis" in window;
+  if (canSpeak) {
+    // A test always plays, even with Sound off, so earbuds can be checked first.
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(SOUND_CHECK_TEXT));
+  }
+  const vibrated = buzz("test");
+  soundStatus.textContent = soundCheckMessage({ canSpeak, soundOn: speakToggle.checked, vibrated });
+});
+vibrateToggle.addEventListener("change", () => writeFlag(storage(), VIBRATE_KEY, vibrateToggle.checked));
+
+// --- First-run intro ---------------------------------------------------------
+
+function introIndex() {
+  return Math.round(introTrack.scrollLeft / Math.max(1, introTrack.clientWidth));
+}
+
+function updateIntro() {
+  const index = introIndex();
+  introDots.forEach((dot, i) => dot.classList.toggle("on", i === index));
+  const last = index >= introDots.length - 1;
+  introNext.textContent = last ? "Start" : "Next";
+  introSkip.style.visibility = last ? "hidden" : "visible";
+}
+
+function openIntro() {
+  if (introDialog.open) return;
+  introDialog.showModal();
+  introTrack.scrollTo({ left: 0 });
+  introNext.focus();
+  updateIntro();
+}
+
+function finishIntro() {
+  writeFlag(storage(), INTRO_KEY, true);
+  if (introDialog.open) introDialog.close();
+}
+
+introTrack.addEventListener("scroll", updateIntro, { passive: true });
+introNext.addEventListener("click", () => {
+  const index = introIndex();
+  if (index >= introDots.length - 1) finishIntro();
+  else introTrack.scrollTo({ left: (index + 1) * introTrack.clientWidth, behavior: "smooth" });
+});
+introSkip.addEventListener("click", finishIntro);
+introDialog.addEventListener("cancel", () => writeFlag(storage(), INTRO_KEY, true));
+introReopen.addEventListener("click", () => {
+  moreSheet.close();
+  openIntro();
+});
+window.addEventListener("resize", () => { if (introDialog.open) updateIntro(); });
+
+if (!readFlag(storage(), INTRO_KEY, false)) openIntro();
+
