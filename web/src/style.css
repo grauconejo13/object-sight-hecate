@@ -433,6 +433,7 @@ body[data-live="on"] .scene-status::before {
 }
 #back-mode[aria-pressed="true"] { border-color: var(--amber); background: var(--amber); color: #2a1a00; }
 
+.sheet-status:empty { display: none; }
 .sheet-status { min-height: 1.4em; margin: 10px 0 0; color: var(--mint); font-size: 13px; line-height: 1.45; }
 .note { margin: 10px 0 0; color: var(--faint); font-size: 12px; line-height: 1.5; }
 
@@ -485,6 +486,70 @@ body[data-live="on"] .scene-status::before {
 .primary[data-state="saving"] { opacity: 0.7; cursor: progress; }
 .primary[data-state="saved"] { background: var(--mint); }
 .primary[data-state="error"] { background: var(--amber); color: #2a1a00; }
+
+
+/* ---------- First-run intro ---------- */
+
+.intro {
+  width: min(460px, 100%);
+  max-width: 100%;
+  height: min(100svh, 760px);
+  max-height: 100svh;
+  margin: auto;
+  padding: max(20px, env(safe-area-inset-top)) 0 max(18px, env(safe-area-inset-bottom));
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 26px;
+  background: radial-gradient(circle at 50% 18%, #183445 0%, var(--ink) 62%);
+  color: var(--text);
+}
+.intro[open] { display: flex; animation: rise 0.2s ease-out; }
+.intro::backdrop { background: rgba(3, 8, 12, 0.8); }
+
+.intro-track {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.intro-track::-webkit-scrollbar { display: none; }
+.intro-track:focus { outline: none; }
+
+.intro-slide {
+  flex: 0 0 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 30px;
+  scroll-snap-align: start;
+}
+.intro-art { width: min(260px, 80%); height: auto; margin: 0 auto 28px; }
+.intro-slide h2 { margin: 0 0 12px; font-size: 26px; font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; }
+.intro-slide p { margin: 0; color: #c4d4d9; font-size: 16px; line-height: 1.55; }
+
+.intro-dots { display: flex; justify-content: center; gap: 8px; padding: 18px 0 14px; }
+.intro-dots span { width: 7px; height: 7px; border-radius: 999px; background: var(--faint); transition: width 0.2s, background-color 0.2s; }
+.intro-dots span.on { width: 22px; background: var(--aqua); }
+
+.intro-actions { display: flex; align-items: center; gap: 12px; padding: 0 24px; }
+.intro-actions .primary { flex: 1; margin: 0; }
+.link {
+  min-height: 50px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+@media (max-width: 519px) {
+  .intro { width: 100%; height: 100svh; border: 0; border-radius: 0; }
+}
 
 /* ---------- Larger screens: centred instrument ---------- */
 

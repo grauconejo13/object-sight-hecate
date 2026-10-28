@@ -5,6 +5,9 @@ import {
   FRAME_SIZES, INTERVALS_MS, applyStatus, caption, createDevicePoller, describeDeviceStatus, pickAlertToSpeak, settingsFromForm,
 } from "./device-mode.js";
 import { askButtonLabel, briefingTag, phoneBriefingRequest } from "./briefing.js";
+import {
+  INTRO_KEY, SOUND_CHECK_TEXT, VIBRATE_KEY, readFlag, soundCheckMessage, supportsVibration, vibrateFor, writeFlag,
+} from "./feedback.js";
 
 const video = document.querySelector("#camera");
 const canvas = document.querySelector("#snapshot");
@@ -43,6 +46,28 @@ const saveSettingsButton = document.querySelector("#device-settings-save");
 const moreOpenButton = document.querySelector("#more-open");
 const moreSheet = document.querySelector("#more-sheet");
 const moreCloseButton = document.querySelector("#more-close");
+const soundTestButton = document.querySelector("#sound-test");
+const soundStatus = document.querySelector("#sound-status");
+const vibrateRow = document.querySelector("#vibrate-row");
+const vibrateToggle = document.querySelector("#vibrate-toggle");
+const introDialog = document.querySelector("#intro");
+const introTrack = document.querySelector("#intro-track");
+const introNext = document.querySelector("#intro-next");
+const introSkip = document.querySelector("#intro-skip");
+const introReopen = document.querySelector("#intro-reopen");
+const introDots = [...document.querySelectorAll(".intro-dots span")];
+
+function storage() {
+  try { return window.localStorage; } catch { return undefined; }
+}
+
+// Vibration helps when sound is off or hard to hear. Android Chrome only; hidden elsewhere.
+const canVibrate = supportsVibration(navigator);
+vibrateRow.hidden = !canVibrate;
+vibrateToggle.checked = readFlag(storage(), VIBRATE_KEY, true);
+function buzz(kind) {
+  return vibrateFor(kind, { enabled: canVibrate && vibrateToggle.checked, nav: navigator });
+}
 const briefingPanel = document.querySelector("#briefing");
 const briefingText = document.querySelector("#briefing-text");
 const briefingTagLine = document.querySelector("#briefing-tag");
@@ -107,6 +132,7 @@ function processPersonTracks(items, width, height) {
         && track.motion !== track.lastMotionAnnounced
         && Date.now() - lastSpokenAt >= SPEECH_COOLDOWN_MS) {
       say(`Focused person looks ${track.motion} in the camera view.`);
+      if (track.motion === "larger in view") buzz("warn");
       track.lastMotionAnnounced = track.motion;
       lastSpokenAt = Date.now();
     }
@@ -701,6 +727,7 @@ function handleDeviceSnapshot(snapshot) {
   lastDeviceAlertId = lastSpokenId;
   if (alert) {
     say(alert.message);
+    if (alert.priority === "warn") buzz("warn");
     lastDeviceSpokenAt = Date.now();
   }
 }
@@ -928,3 +955,61 @@ window.addEventListener("pagehide", () => {
   stopCamera();
   stopDeviceWatch();
 });
+
+// --- Sound check and vibration preference ---------------------------------
+
+soundTestButton.addEventListener("click", () => {
+  const canSpeak = "speechSynthesis" in window;
+  if (canSpeak) {
+    // A test always plays, even with Sound off, so earbuds can be checked first.
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(SOUND_CHECK_TEXT));
+  }
+  const vibrated = buzz("test");
+  soundStatus.textContent = soundCheckMessage({ canSpeak, soundOn: speakToggle.checked, vibrated });
+});
+vibrateToggle.addEventListener("change", () => writeFlag(storage(), VIBRATE_KEY, vibrateToggle.checked));
+
+// --- First-run intro ---------------------------------------------------------
+
+function introIndex() {
+  return Math.round(introTrack.scrollLeft / Math.max(1, introTrack.clientWidth));
+}
+
+function updateIntro() {
+  const index = introIndex();
+  introDots.forEach((dot, i) => dot.classList.toggle("on", i === index));
+  const last = index >= introDots.length - 1;
+  introNext.textContent = last ? "Start" : "Next";
+  introSkip.style.visibility = last ? "hidden" : "visible";
+}
+
+function openIntro() {
+  if (introDialog.open) return;
+  introDialog.showModal();
+  introTrack.scrollTo({ left: 0 });
+  introNext.focus();
+  updateIntro();
+}
+
+function finishIntro() {
+  writeFlag(storage(), INTRO_KEY, true);
+  if (introDialog.open) introDialog.close();
+}
+
+introTrack.addEventListener("scroll", updateIntro, { passive: true });
+introNext.addEventListener("click", () => {
+  const index = introIndex();
+  if (index >= introDots.length - 1) finishIntro();
+  else introTrack.scrollTo({ left: (index + 1) * introTrack.clientWidth, behavior: "smooth" });
+});
+introSkip.addEventListener("click", finishIntro);
+introDialog.addEventListener("cancel", () => writeFlag(storage(), INTRO_KEY, true));
+introReopen.addEventListener("click", () => {
+  moreSheet.close();
+  openIntro();
+});
+window.addEventListener("resize", () => { if (introDialog.open) updateIntro(); });
+
+if (!readFlag(storage(), INTRO_KEY, false)) openIntro();
+
