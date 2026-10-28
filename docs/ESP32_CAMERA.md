@@ -112,6 +112,7 @@ Only the newest frame is held in memory on the laptop; nothing is written to dis
 - **`Request failed: -1`** on Serial: TLS or DNS failure. Check `HECATE_BASE_URL` (https, `:8443`, no trailing slash) and that Funnel is on.
 - **`rejected the device token`**: the token differs between `secrets.h` and `HECATE_DEVICE_TOKEN`.
 - **App says waiting but Serial shows frames sent**: the phone is not on Tailscale or `VITE_API_URL` points elsewhere.
+- **Settings don't seem to change**: after Save, the settings sheet says "Camera applied the new settings ✓" once the camera reports back. "Isn't reporting its settings" means the camera runs firmware older than this fix: reflash. "Hasn't applied: …" names the setting; the Serial Monitor prints `Settings applied: …` on every change, or `Response had no X-Hecate-* settings headers` if the Funnel path is wrong.
 - **Laggy**: lower resolution to QVGA or frame rate to ~1.5 fps; raise image quality number (smaller uploads).
 - **Camera init failed**: PSRAM setting is wrong or the ribbon cable is loose.
 

@@ -85,3 +85,16 @@ test("poller fetches a frame only when the sequence advances and skips old alert
   poller.stop();
   assert.equal(poller.running, false);
 });
+
+test("apply status confirms, waits, and explains when the camera doesn't follow", async () => {
+  const { applyStatus } = await import("../src/device-mode.js");
+  const saved = { frame_size: "SVGA", jpeg_quality: 12, interval_ms: 400, vflip: true, hmirror: false, paused: false, mounting: "backward" };
+  const old = { ...saved, frame_size: "VGA", vflip: false };
+  assert.equal(applyStatus({ saved, applied: { ...saved }, savedAt: 0, now: 1000 }).state, "applied");
+  assert.equal(applyStatus({ saved, applied: old, savedAt: 0, now: 3000 }).state, "waiting");
+  const stuck = applyStatus({ saved, applied: old, savedAt: 0, now: 12000 });
+  assert.equal(stuck.state, "stuck");
+  assert.match(stuck.text, /resolution, flip/);
+  assert.equal(applyStatus({ saved, applied: null, savedAt: 0, now: 3000 }).state, "waiting");
+  assert.match(applyStatus({ saved, applied: null, savedAt: 0, now: 12000 }).text, /Reflash/);
+});

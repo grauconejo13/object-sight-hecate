@@ -64,6 +64,24 @@ const char *HEADER_KEYS[] = {
   "X-Hecate-Vflip", "X-Hecate-Hmirror", "X-Hecate-Paused",
 };
 
+const char *frameSizeName(framesize_t size) {
+  switch (size) {
+    case FRAMESIZE_QVGA: return "QVGA";
+    case FRAMESIZE_VGA: return "VGA";
+    case FRAMESIZE_SVGA: return "SVGA";
+    case FRAMESIZE_HD: return "HD";
+    default: return "?";
+  }
+}
+
+// Sent with every request so the phone app can confirm a change took effect.
+String appliedHeader() {
+  char buf[48];
+  snprintf(buf, sizeof(buf), "%s;%d;%lu;%d;%d;%d", frameSizeName(current.frameSize), current.quality,
+           (unsigned long)current.intervalMs, current.vflip, current.hmirror, current.paused);
+  return String(buf);
+}
+
 framesize_t parseFrameSize(const String &name, framesize_t fallback) {
   if (name == "QVGA") return FRAMESIZE_QVGA;
   if (name == "VGA") return FRAMESIZE_VGA;
@@ -79,13 +97,19 @@ void applySettings(const Settings &next) {
   if (next.quality != current.quality) sensor->set_quality(sensor, next.quality);
   if (next.vflip != current.vflip) sensor->set_vflip(sensor, next.vflip);
   if (next.hmirror != current.hmirror) sensor->set_hmirror(sensor, next.hmirror);
-  if (next.paused != current.paused) Serial.println(next.paused ? "Paused by phone app" : "Resumed by phone app");
+  bool changed = next.frameSize != current.frameSize || next.quality != current.quality ||
+                 next.intervalMs != current.intervalMs || next.vflip != current.vflip ||
+                 next.hmirror != current.hmirror || next.paused != current.paused;
   current = next;
+  if (changed) Serial.printf("Settings applied: %s\n", appliedHeader().c_str());
 }
 
 // Settings arrive as response headers; missing or malformed values keep the current ones.
 void readSettingsHeaders() {
-  if (!http.hasHeader("X-Hecate-Paused")) return;
+  if (!http.hasHeader("X-Hecate-Paused")) {
+    Serial.println("Response had no X-Hecate-* settings headers (check the Funnel path)");
+    return;
+  }
   Settings next = current;
   next.frameSize = parseFrameSize(http.header("X-Hecate-Frame-Size"), current.frameSize);
   int quality = http.header("X-Hecate-Quality").toInt();
@@ -163,6 +187,7 @@ bool request(const char *url, camera_fb_t *frame) {
   if (!http.begin(tls, url)) return false;
   http.collectHeaders(HEADER_KEYS, sizeof(HEADER_KEYS) / sizeof(HEADER_KEYS[0]));
   http.addHeader("Authorization", AUTH_HEADER);
+  http.addHeader("X-Hecate-Applied", appliedHeader());
   int code;
   if (frame) {
     http.addHeader("Content-Type", "image/jpeg");

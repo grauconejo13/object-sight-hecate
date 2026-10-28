@@ -68,6 +68,26 @@ class DeviceSettingsTests(unittest.TestCase):
         self.assertEqual(headers["X-Hecate-Frame-Size"], "VGA")
 
 
+class AppliedHeaderTests(unittest.TestCase):
+    def test_parses_firmware_report(self) -> None:
+        from object_sight_hecate.device import parse_applied
+
+        self.assertEqual(parse_applied("SVGA;15;600;1;0;0"), {
+            "frame_size": "SVGA", "jpeg_quality": 15, "interval_ms": 600,
+            "vflip": True, "hmirror": False, "paused": False,
+        })
+        for bad in (None, "", "VGA;12", "UXGA;12;400;0;0;0", "VGA;x;400;0;0;0"):
+            self.assertIsNone(parse_applied(bad))
+
+    def test_snapshot_shows_applied_settings_only_after_a_report(self) -> None:
+        session = session_with([])
+        self.assertIsNone(session.snapshot()["applied"])
+        session.report_applied("garbage")
+        self.assertIsNone(session.snapshot()["applied"])
+        session.report_applied("HD;10;250;0;1;0")
+        self.assertEqual(session.snapshot()["applied"]["frame_size"], "HD")
+
+
 class DeviceSessionTests(unittest.TestCase):
     def test_offline_until_first_frame_then_online(self) -> None:
         clock = Clock()
@@ -203,6 +223,13 @@ class DeviceApiTests(unittest.TestCase):
         heartbeat = self.client.get("/v1/device/settings", headers={"Authorization": f"Bearer {self.TOKEN}"})
         self.assertEqual(heartbeat.headers["X-Hecate-Paused"], "1")
         self.assertEqual(heartbeat.headers["X-Hecate-Frame-Size"], "SVGA")
+
+    def test_device_reports_applied_settings_on_upload_and_heartbeat(self) -> None:
+        headers = {"Content-Type": "image/jpeg", "Authorization": f"Bearer {self.TOKEN}", "X-Hecate-Applied": "QVGA;20;1000;0;0;0"}
+        self.client.post("/v1/device/frame", content=jpeg(), headers=headers)
+        self.assertEqual(self.client.get("/v1/esp32/latest").json()["applied"]["frame_size"], "QVGA")
+        self.client.get("/v1/device/settings", headers={"Authorization": f"Bearer {self.TOKEN}", "X-Hecate-Applied": "QVGA;20;1000;0;0;1"})
+        self.assertTrue(self.client.get("/v1/esp32/latest").json()["applied"]["paused"])
 
     def test_bad_settings_are_rejected(self) -> None:
         self.assertEqual(self.client.put("/v1/esp32/settings", json={"interval_ms": 5}).status_code, 400)

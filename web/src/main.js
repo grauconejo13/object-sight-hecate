@@ -2,7 +2,7 @@ import "./style.css";
 import { PersonTracks } from "./person-tracks.js";
 import { createFieldEvidenceLog } from "./field-evidence.js";
 import {
-  FRAME_SIZES, INTERVALS_MS, caption, createDevicePoller, describeDeviceStatus, pickAlertToSpeak, settingsFromForm,
+  FRAME_SIZES, INTERVALS_MS, applyStatus, caption, createDevicePoller, describeDeviceStatus, pickAlertToSpeak, settingsFromForm,
 } from "./device-mode.js";
 import { askButtonLabel, briefingTag, phoneBriefingRequest } from "./briefing.js";
 
@@ -27,6 +27,7 @@ const backStatus = document.querySelector("#back-status");
 const exportEvidenceButton = document.querySelector("#export-evidence");
 const evidenceCount = document.querySelector("#evidence-count");
 const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const MISSING_API_URL = "No backend URL. Put VITE_API_URL in web/.env.local and restart npm run dev (on Vercel: project environment variables, then redeploy).";
 const sourcePhoneButton = document.querySelector("#source-phone");
 const sourceEsp32Button = document.querySelector("#source-esp32");
 const deviceFrame = document.querySelector("#device-frame");
@@ -406,7 +407,7 @@ window.addEventListener("resize", () => {
 
 async function analyzeFrame(isLive = false) {
   if (!apiBase) {
-    setStatus("Set VITE_API_URL to your backend URL before deploying.");
+    setStatus(MISSING_API_URL);
     if (isLive) stopLiveAnalysis();
     return;
   }
@@ -565,6 +566,7 @@ const SOURCE_KEY = "hecate.source";
 let source = "phone";
 let deviceSnapshot = null;
 let deviceSettingsDirty = false;
+let pendingApply = null; // { settings, at } after Save, until the camera confirms.
 let lastDeviceAlertId = 0;
 let lastDeviceSpokenAt = 0;
 let deviceFrameUrl = null;
@@ -618,7 +620,7 @@ async function holdScreenAwake(on) {
 
 function startDeviceWatch() {
   if (!apiBase) {
-    setStatus("Set VITE_API_URL to your backend URL before deploying.");
+    setStatus(MISSING_API_URL);
     return;
   }
   speakToggle.checked = true;
@@ -646,12 +648,19 @@ function stopDeviceWatch() {
 
 function handleDeviceSnapshot(snapshot) {
   deviceSnapshot = snapshot;
-  const statusText = describeDeviceStatus(snapshot);
+  let statusText = describeDeviceStatus(snapshot);
+  if (pendingApply) {
+    const apply = applyStatus({ saved: pendingApply.settings, applied: snapshot.applied, savedAt: pendingApply.at });
+    if (deviceSettingsDialog.open) deviceSettingsStatus.textContent = apply.text;
+    statusText = apply.text;
+    // Keep the confirmation visible briefly, then return to the live status.
+    if (apply.state !== "waiting" && Date.now() - pendingApply.at > 15000) pendingApply = null;
+    else if (apply.state === "applied") pendingApply.at = Math.min(pendingApply.at, Date.now() - 11000);
+  }
   setStatus(statusText);
   badge.textContent = snapshot.online
     ? `ESP32 CAM · ${snapshot.settings.mounting === "forward" ? "FRONT" : "REAR"} · LIVE`
     : "ESP32 CAM · WAITING";
-  if (deviceSettingsDialog.open && !deviceSettingsDirty) fillDeviceSettings(snapshot.settings);
 
   const { alert, lastSpokenId } = pickAlertToSpeak(snapshot.alerts, {
     lastSpokenId: lastDeviceAlertId,
@@ -738,9 +747,10 @@ async function saveDeviceSettings(event) {
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     deviceSettingsDirty = false;
     fillDeviceSettings(data.settings);
-    deviceSettingsStatus.textContent = data.settings.paused
-      ? "Saved. The camera pauses after its current frame."
-      : "Saved. The camera applies this on its next frame.";
+    pendingApply = { settings: data.settings, at: Date.now() };
+    deviceSettingsStatus.textContent = devicePoller.running
+      ? "Saved. Waiting for the camera to apply it…"
+      : "Saved. Tap Watch to see when the camera applies it.";
   } catch (error) {
     deviceSettingsStatus.textContent = `Couldn't save: ${error.message}`;
   }
@@ -751,10 +761,13 @@ sourceEsp32Button.addEventListener("click", () => setSource("esp32"));
 deviceWatchButton.addEventListener("click", () => (devicePoller.running ? stopDeviceWatch() : startDeviceWatch()));
 deviceSettingsOpen.addEventListener("click", openDeviceSettings);
 deviceSettingsClose.addEventListener("click", () => deviceSettingsDialog.close());
-deviceSettingsForm.addEventListener("input", () => {
-  deviceSettingsDirty = true;
-  qualityValue.textContent = `(${deviceSettingsForm.jpeg_quality.value})`;
-});
+// Some mobile browsers fire only "change" for dropdowns, so listen to both.
+for (const type of ["input", "change"]) {
+  deviceSettingsForm.addEventListener(type, () => {
+    deviceSettingsDirty = true;
+    qualityValue.textContent = `(${deviceSettingsForm.jpeg_quality.value})`;
+  });
+}
 deviceSettingsForm.addEventListener("submit", saveDeviceSettings);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && devicePoller.running) holdScreenAwake(true);
@@ -796,7 +809,7 @@ async function refreshBriefingStatus() {
 async function askHecate() {
   if (briefingRequest) return;
   if (!apiBase) {
-    showBriefing("Set VITE_API_URL to your backend URL first.", "Not configured", true);
+    showBriefing(MISSING_API_URL, "Not configured", true);
     return;
   }
   let body;
