@@ -339,7 +339,8 @@ void setup() {
   }
 
   // Carriers like T-Mobile run IPv6-only networks; IPv4 from hotspot devices may
-  // not get through. IPv6 lets the camera try the path phones use (still being verified).
+  // not get through. With IPv6 on, the camera reaches the backend like a phone does
+  // (confirmed on a T-Mobile 5G hotspot).
   WiFi.enableIPv6();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);  // Power-bank powered; latency matters more than battery here.
