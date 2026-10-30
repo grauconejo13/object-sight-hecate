@@ -333,7 +333,9 @@ void setup() {
   http.setTimeout(8000);
   http.setConnectTimeout(8000);
 
-  for (size_t i = 0; i < BASE_URL_COUNT; i++) diagnose(BASE_URLS[i]);
+  for (size_t i = 0; i < BASE_URL_COUNT; i++) {
+    if (strlen(BASE_URLS[i]) > 0) diagnose(BASE_URLS[i]);  // a backup set to "" counts as unset
+  }
 }
 
 // After repeated failures, explain why (at most every 30 s) and try the next URL.
@@ -341,8 +343,13 @@ void handleFailure() {
   if (++consecutiveFailures < FAILURES_BEFORE_SWITCH) return;
   consecutiveFailures = 0;
   if (millis() - lastDiagnosisAt > DIAGNOSE_EVERY_MS) diagnose(BASE_URLS[activeUrl]);
-  if (BASE_URL_COUNT > 1) {
-    activeUrl = (activeUrl + 1) % BASE_URL_COUNT;
+  size_t next = activeUrl;
+  for (size_t i = 1; i < BASE_URL_COUNT; i++) {
+    size_t candidate = (activeUrl + i) % BASE_URL_COUNT;
+    if (strlen(BASE_URLS[candidate]) > 0) { next = candidate; break; }
+  }
+  if (next != activeUrl) {
+    activeUrl = next;
     http.end();
     tls.stop();
     Serial.printf("Switching to %s\n", BASE_URLS[activeUrl]);
