@@ -221,6 +221,17 @@ void diagnose(const char *base) {
   Serial.printf("  Wi-Fi: %s, IP %s, DNS %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(),
                 WiFi.dnsIP().toString().c_str());
 
+  // Hotspots answer DNS themselves, so a working lookup doesn't prove internet access.
+  // A plain TCP connection to a well-known public server does.
+  {
+    WiFiClient net;
+    bool online = net.connect(IPAddress(1, 1, 1, 1), 443, 6000);
+    net.stop();
+    Serial.println(online ? "  Internet: ok (reached 1.1.1.1:443)"
+                          : "  Internet: FAILED to reach 1.1.1.1:443. This network gives the camera no internet "
+                            "(check the hotspot's data / tethering plan).");
+  }
+
   IPAddress ip;
   // Some cores report success with 0.0.0.0 when the name doesn't exist.
   if (!WiFi.hostByName(host.c_str(), ip) || ip == IPAddress(0, 0, 0, 0)) {
