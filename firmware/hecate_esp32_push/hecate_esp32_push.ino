@@ -232,6 +232,22 @@ void diagnose(const char *base) {
                             "(check the hotspot's data / tethering plan).");
   }
 
+  // IPv6 path: on IPv6-only carrier networks this is the one that works.
+  {
+    IPAddress v6 = WiFi.globalIPv6();
+    for (int i = 0; i < 10 && v6 == IPAddress(IPv6); i++) {  // wait up to 5 s for an address
+      delay(500);
+      v6 = WiFi.globalIPv6();
+    }
+    Serial.printf("  IPv6: address %s\n", v6 == IPAddress(IPv6) ? "NONE" : v6.toString().c_str());
+    IPAddress cloudflare6;
+    cloudflare6.fromString("2606:4700:4700::1111");
+    WiFiClient net6;
+    bool ok6 = v6 != IPAddress(IPv6) && net6.connect(cloudflare6, 443, 6000);
+    net6.stop();
+    Serial.println(ok6 ? "  Internet over IPv6: ok" : "  Internet over IPv6: FAILED");
+  }
+
   IPAddress ip;
   // Some cores report success with 0.0.0.0 when the name doesn't exist.
   if (!WiFi.hostByName(host.c_str(), ip) || ip == IPAddress(0, 0, 0, 0)) {
@@ -322,6 +338,9 @@ void setup() {
     ESP.restart();
   }
 
+  // Carriers like T-Mobile run IPv6-only networks; IPv4 from hotspot devices may
+  // not get through. With IPv6 on, the camera reaches the backend like a phone does.
+  WiFi.enableIPv6();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);  // Power-bank powered; latency matters more than battery here.
   wifi.addAP(WIFI_SSID, WIFI_PASSWORD);
