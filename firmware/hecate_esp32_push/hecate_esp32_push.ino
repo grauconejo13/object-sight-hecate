@@ -222,7 +222,8 @@ void diagnose(const char *base) {
                 WiFi.dnsIP().toString().c_str());
 
   IPAddress ip;
-  if (!WiFi.hostByName(host.c_str(), ip)) {
+  // Some cores report success with 0.0.0.0 when the name doesn't exist.
+  if (!WiFi.hostByName(host.c_str(), ip) || ip == IPAddress(0, 0, 0, 0)) {
     Serial.printf("  DNS:  FAILED for %s. Not publicly resolvable: Funnel is off for this host, "
                   "the name is wrong, or the hotspot has no internet.\n", host.c_str());
     return;
