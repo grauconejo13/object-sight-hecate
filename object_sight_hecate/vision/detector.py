@@ -5,6 +5,19 @@ from dataclasses import dataclass
 import numpy as np
 
 
+# Classes a pedestrian almost never meets, which the small model often hallucinates
+# (shelf rows as a "train", fridges as a "boat"). Kept only when very confident.
+UNLIKELY_LABELS = frozenset({
+    "train", "airplane", "boat", "elephant", "bear", "zebra", "giraffe",
+    "surfboard", "skis", "snowboard", "kite", "frisbee", "toilet",
+})
+UNLIKELY_MIN_CONFIDENCE = 0.75
+
+
+def is_plausible(label: str, confidence: float) -> bool:
+    return label not in UNLIKELY_LABELS or confidence >= UNLIKELY_MIN_CONFIDENCE
+
+
 @dataclass(frozen=True)
 class Detection:
     track_id: int | None
@@ -69,12 +82,15 @@ class ObjectDetector:
         for coords, class_id, confidence, track_id in zip(
             xyxy, class_ids, confidences, track_ids, strict=True
         ):
+            label = str(names[class_id])
+            if not is_plausible(label, float(confidence)):
+                continue
             x1, y1, x2, y2 = (int(value) for value in coords)
             detections.append(
                 Detection(
                     track_id=track_id,
                     class_id=class_id,
-                    label=str(names[class_id]),
+                    label=label,
                     confidence=float(confidence),
                     x1=x1,
                     y1=y1,

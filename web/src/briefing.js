@@ -29,6 +29,12 @@ export function briefingTag(result) {
   }
 }
 
+/** Plain reason a briefing fell back to the local summary, or "" when Nemotron answered. */
+export function briefingDetail(result) {
+  if (!result || result.provider === "nemotron" || !result.reason) return "";
+  return result.reason.replace(/^Nemotron reply discarded by local guard:\s*/i, "Reason: ");
+}
+
 export function askButtonLabel(status) {
   if (!status) return "Ask Hecate for a scene briefing";
   return status.available

@@ -4,7 +4,7 @@ import { createFieldEvidenceLog } from "./field-evidence.js";
 import {
   FRAME_SIZES, INTERVALS_MS, applyStatus, caption, createDevicePoller, describeDeviceStatus, pickAlertToSpeak, settingsFromForm,
 } from "./device-mode.js";
-import { askButtonLabel, briefingTag, phoneBriefingRequest } from "./briefing.js";
+import { askButtonLabel, briefingDetail, briefingTag, phoneBriefingRequest } from "./briefing.js";
 import {
   INTRO_KEY, SOUND_CHECK_TEXT, VIBRATE_KEY, readFlag, soundCheckMessage, supportsVibration, vibrateFor, writeFlag,
 } from "./feedback.js";
@@ -71,6 +71,7 @@ function buzz(kind) {
 const briefingPanel = document.querySelector("#briefing");
 const briefingText = document.querySelector("#briefing-text");
 const briefingTagLine = document.querySelector("#briefing-tag");
+const briefingDetailLine = document.querySelector("#briefing-detail");
 const briefingClose = document.querySelector("#briefing-close");
 let lastPhoneItems = null;
 
@@ -881,9 +882,11 @@ try {
 
 let briefingRequest = null;
 
-function showBriefing(text, tag, unavailable = false) {
+function showBriefing(text, tag, unavailable = false, detail = "") {
   briefingText.textContent = text;
   briefingTagLine.textContent = tag;
+  briefingDetailLine.textContent = detail;
+  briefingDetailLine.hidden = !detail;
   briefingPanel.classList.toggle("unavailable", unavailable);
   briefingPanel.hidden = false;
 }
@@ -934,7 +937,7 @@ async function askHecate() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
-    showBriefing(result.text, briefingTag(result), result.provider !== "nemotron");
+    showBriefing(result.text, briefingTag(result), result.provider !== "nemotron", briefingDetail(result));
     say(result.text);
   } catch (error) {
     const message = error.name === "AbortError" ? "Briefing timed out." : `Briefing failed: ${error.message}`;

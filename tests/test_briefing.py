@@ -151,6 +151,14 @@ class GuardTests(unittest.TestCase):
             with self.subTest(scene=local_briefing(facts)):
                 self.assertIsNone(check_briefing(local_briefing(facts), facts))
 
+    def test_directions_listed_together_share_their_objects(self) -> None:
+        split = build_facts([PERSON, {**PERSON, "clock": 9}, CAR], view="backward")
+        self.assertIsNone(check_briefing("Rear view: two people at 6 and 9 o'clock, and a car at 7 o'clock.", split))
+        self.assertIsNone(check_briefing("Rear view: people at 6, 9 o'clock.", split))
+        self.assertIn("more than", check_briefing("Rear view: three people at 6 and 9 o'clock.", split))
+        self.assertIn("4 o'clock", check_briefing("Rear view: two people at 6 and 4 o'clock.", split))
+        self.assertIsNotNone(check_briefing("Rear view: a car at 6 and 7 o'clock.", split))
+
     def test_strips_reasoning_and_quotes(self) -> None:
         self.assertEqual(clean_reply('<think>count them</think>\n"Rear view: a person at 6 o\'clock."'), "Rear view: a person at 6 o'clock.")
         self.assertEqual(clean_reply("planning...</think> Rear view: a car at 7 o'clock."), "Rear view: a car at 7 o'clock.")
@@ -182,6 +190,31 @@ class BrieferTests(unittest.TestCase):
         self.assertEqual((result["provider"], result["nebius"]), ("local", "guarded"))
         self.assertIn("'dog'", result["reason"])
         self.assertEqual(result["text"], "Rear view: a person at 6 o'clock and a car at 7 o'clock.")
+
+    def test_asks_nemotron_not_to_think_before_answering(self) -> None:
+        transport, calls = reply("Rear view: a person at 6 o'clock and a car at 7 o'clock.")
+        Briefer(api_key="sk-test", transport=transport).brief(self.facts)
+        self.assertEqual(calls[0]["body"]["chat_template_kwargs"], {"enable_thinking": False})
+        self.assertLessEqual(calls[0]["body"]["max_tokens"], 400)
+
+    def test_retries_without_thinking_switch_if_endpoint_rejects_it(self) -> None:
+        good = json.dumps({"choices": [{"message": {"content": "Rear view: a person at 6 o'clock."}}]}).encode()
+        calls = []
+
+        def transport(url, headers, payload, timeout):
+            calls.append(json.loads(payload))
+            return (400, b'{"detail":"unknown field"}') if len(calls) == 1 else (200, good)
+
+        result = Briefer(api_key="sk-test", transport=transport).brief(self.facts)
+        self.assertEqual(result["provider"], "nemotron")
+        self.assertNotIn("chat_template_kwargs", calls[1])
+        self.assertGreater(calls[1]["max_tokens"], calls[0]["max_tokens"])
+
+    def test_empty_answer_from_token_limit_is_explained(self) -> None:
+        body = json.dumps({"choices": [{"finish_reason": "length", "message": {"content": None, "reasoning_content": "Let me count..."}}]}).encode()
+        result = Briefer(api_key="sk-test", transport=lambda *a: (200, body)).brief(self.facts)
+        self.assertEqual((result["provider"], result["nebius"]), ("local", "guarded"))
+        self.assertIn("token limit", result["reason"])
 
     def test_guarded_reply_falls_back_to_local(self) -> None:
         transport, _ = reply("Rear view: a dangerous man at 6 o'clock.")
