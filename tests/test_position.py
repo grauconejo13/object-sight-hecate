@@ -16,3 +16,13 @@ class HorizontalPositionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlausibilityTests(unittest.TestCase):
+    def test_unlikely_classes_need_high_confidence(self) -> None:
+        from object_sight_hecate.vision.detector import is_plausible
+
+        self.assertFalse(is_plausible("train", 0.6))
+        self.assertTrue(is_plausible("train", 0.9))
+        self.assertTrue(is_plausible("person", 0.36))
+        self.assertTrue(is_plausible("car", 0.5))

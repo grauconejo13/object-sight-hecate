@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -66,6 +67,11 @@ FORBIDDEN_TERMS = (
 )
 _FORBIDDEN_RE = re.compile(r"\b(" + "|".join(FORBIDDEN_TERMS) + r")\b", re.IGNORECASE)
 _CLOCK_RE = re.compile(r"\b(\d{1,2})\s*o['’]?\s*clock\b", re.IGNORECASE)
+# "9 and 12 o'clock", "5, 6 or 7 o'clock": several directions sharing one "o'clock".
+_CLOCK_LIST_RE = re.compile(
+    r"\b(\d{1,2}(?:\s*(?:,|and|or|&)\s*\d{1,2})+)\s*o['’]?\s*clock\b", re.IGNORECASE
+)
+log = logging.getLogger("uvicorn.error")
 _THINK_RE = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
 
 PRIORITY = {"person": 0, "bicycle": 1, "motorcycle": 1, "car": 1, "bus": 1, "truck": 1, "dog": 2, "cat": 2}
@@ -144,53 +150,80 @@ _COUNT_RE = re.compile(r"\b(\d+|" + "|".join(_COUNT_WORDS) + r")\s+$", re.IGNORE
 _CLOCK_TOKEN_RE = re.compile(r"§(\d+)§")
 
 
+def _clock_tokens(text: str) -> str:
+    """Replace every o'clock mention with §N§ tokens, expanding lists like "9 and 12 o'clock"."""
+    text = _CLOCK_LIST_RE.sub(
+        lambda m: " ".join(f"§{int(n)}§" for n in re.findall(r"\d{1,2}", m.group(1))), text
+    )
+    return _CLOCK_RE.sub(lambda m: f" §{int(m.group(1))}§ ", text)
+
+
 def _check_objects(text: str, facts: SceneFacts) -> str | None:
     """Every object named must be in the facts, at the direction and count claimed.
 
     Within a clause, a direction applies to every object named since the
     previous direction: "a person and a car at 7 o'clock" places both at 7.
+    Directions listed together ("two people at 9 and 12 o'clock") are checked
+    as one group: the objects may be spread across them.
     """
     body = text.split(":", 1)[1] if ":" in text else text
     # Hide "N o'clock" so the COCO label "clock" cannot match inside it.
-    body = _CLOCK_RE.sub(lambda m: f" §{int(m.group(1))}§ ", body)
+    body = _clock_tokens(body)
     present = Counter(obj["label"] for obj in facts.objects)
     at_clock: dict[int, Counter[str]] = {}
     for obj in facts.objects:
         at_clock.setdefault(obj["clock"], Counter())[obj["label"]] += 1
 
+    def check_group(pending: list[tuple[str, int]], clocks: list[int]) -> str | None:
+        if not pending:
+            return f"gave {clocks[0]} o'clock without naming a detected object"
+        for word, claimed in pending:
+            available = sum(at_clock.get(c, Counter())[label] for c in clocks for label in _OBJECT_FORMS[word])
+            if available == 0:
+                where = " or ".join(str(c) for c in clocks)
+                return f"placed '{word}' at {where} o'clock, which the scene facts do not"
+            if claimed > available:
+                where = "/".join(str(c) for c in clocks)
+                return f"claimed {claimed} '{word}' at {where} o'clock; the scene facts have {available}"
+        for c in clocks:
+            here = at_clock.get(c, Counter())
+            if not any(here[label] for word, _ in pending for label in _OBJECT_FORMS[word]):
+                return f"placed '{pending[0][0]}' at {c} o'clock, which the scene facts do not"
+        return None
+
     for clause in re.split(r"[;.]", body):
         pending: list[tuple[str, int]] = []
+        group: list[int] = []
         tokens = sorted(
             [(m.start(), "object", m) for m in _OBJECT_RE.finditer(clause)]
             + [(m.start(), "clock", m) for m in _CLOCK_TOKEN_RE.finditer(clause)],
             key=lambda item: item[0],
         )
         for _, kind, match in tokens:
-            if kind == "object":
-                word = match.group(1).lower()
-                labels = _OBJECT_FORMS[word]
-                if not labels or not labels & present.keys():
-                    return f"named '{word}', which is not in the scene facts"
-                count = _COUNT_RE.search(clause[: match.start()])
-                claimed = 1
-                if count:
-                    raw = count.group(1).lower()
-                    claimed = int(raw) if raw.isdigit() else _COUNT_WORDS[raw]
-                    if claimed > sum(present[label] for label in labels):
-                        return f"claimed {raw} '{word}', more than the scene facts contain"
-                pending.append((word, claimed))
+            if kind == "clock":
+                group.append(int(match.group(1)))
                 continue
-            clock = int(match.group(1))
-            if not pending:
-                return f"gave {clock} o'clock without naming a detected object"
-            here = at_clock.get(clock, Counter())
-            for word, claimed in pending:
-                available = sum(here[label] for label in _OBJECT_FORMS[word])
-                if available == 0:
-                    return f"placed '{word}' at {clock} o'clock, which the scene facts do not"
-                if claimed > available:
-                    return f"claimed {claimed} '{word}' at {clock} o'clock; the scene facts have {available}"
-            pending = []
+            if group:  # an object after a run of directions closes that run
+                problem = check_group(pending, group)
+                if problem:
+                    return problem
+                pending, group = [], []
+            word = match.group(1).lower()
+            labels = _OBJECT_FORMS[word]
+            if not labels or not labels & present.keys():
+                return f"named '{word}', which is not in the scene facts"
+            count = _COUNT_RE.search(clause[: match.start()])
+            claimed = 1
+            if count:
+                raw = count.group(1).lower()
+                claimed = int(raw) if raw.isdigit() else _COUNT_WORDS[raw]
+                if claimed > sum(present[label] for label in labels):
+                    return f"claimed {raw} '{word}', more than the scene facts contain"
+            pending.append((word, claimed))
+        if group:
+            problem = check_group(pending, group)
+            if problem:
+                return problem
     return None
 
 
@@ -313,7 +346,7 @@ def check_briefing(text: str, facts: SceneFacts) -> str | None:
         return f"used forbidden term '{match.group(0).lower()}'"
     if re.search(r"\d+(\.\d+)?\s*(m|cm|ft|km|mi)\b", text, re.IGNORECASE):
         return "stated a distance"
-    for clock in _CLOCK_RE.findall(text):
+    for clock in re.findall(r"§(\d+)§", _clock_tokens(text)):
         if int(clock) not in facts.clocks:
             return f"mentioned {clock} o'clock, which is not in the facts"
     return _check_objects(text, facts)
@@ -395,16 +428,25 @@ class Briefer:
                     del self._cache[stale_key]
         return result
 
-    def _call_nemotron(self, facts: SceneFacts) -> dict[str, Any]:
-        body = json.dumps({
+    def _request_body(self, facts: SceneFacts, *, thinking_off: bool) -> bytes:
+        payload: dict[str, Any] = {
             "model": self.model,
             "temperature": 0.2,
-            "max_tokens": 600,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": facts.as_prompt_json()},
             ],
-        }).encode()
+        }
+        if thinking_off:
+            # Nemotron 3 reasons before answering by default; one spoken sentence
+            # doesn't need it, and reasoning can use up the whole token budget.
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
+            payload["max_tokens"] = 200
+        else:
+            payload["max_tokens"] = 1500
+        return json.dumps(payload).encode()
+
+    def _call_nemotron(self, facts: SceneFacts) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -412,10 +454,15 @@ class Briefer:
         }
 
         def fallback(reason: str, nebius: str = "error") -> dict[str, Any]:
+            log.warning("Scene briefing fell back to the local summary: %s", reason)
             return {"text": local_briefing(facts), "provider": "local", "nebius": nebius, "reason": reason}
 
+        url = f"{self.base_url}/chat/completions"
         try:
-            status, raw = self.transport(f"{self.base_url}/chat/completions", headers, body, REQUEST_TIMEOUT_S)
+            status, raw = self.transport(url, headers, self._request_body(facts, thinking_off=True), REQUEST_TIMEOUT_S)
+            if status in (400, 422):
+                # The endpoint may not accept chat_template_kwargs; retry with a larger budget instead.
+                status, raw = self.transport(url, headers, self._request_body(facts, thinking_off=False), REQUEST_TIMEOUT_S)
         except (OSError, TimeoutError) as exc:
             return fallback(f"Nebius unreachable: {type(exc).__name__}")
         if status == 401 or status == 403:
@@ -425,12 +472,17 @@ class Briefer:
         if status >= 400:
             return fallback(f"Nebius returned HTTP {status}")
         try:
-            content = json.loads(raw)["choices"][0]["message"].get("content") or ""
+            choice = json.loads(raw)["choices"][0]
+            content = choice["message"].get("content") or ""
         except (ValueError, KeyError, IndexError, TypeError):
             return fallback("Unexpected response from Nebius")
 
         text = clean_reply(content)
+        if not text:
+            cut = " (reply cut off by the token limit)" if choice.get("finish_reason") == "length" else ""
+            return fallback(f"Nemotron returned no answer text{cut}", "guarded")
         problem = check_briefing(text, facts)
         if problem:
+            log.warning("Nemotron reply rejected (%s): %r", problem, text[:300])
             return fallback(f"Nemotron reply discarded by local guard: {problem}", "guarded")
         return {"text": text, "provider": "nemotron", "model": self.model, "nebius": "ok", "reason": None}

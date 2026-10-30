@@ -254,6 +254,8 @@ body[data-live="on"] .scene-status::before {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+.briefing-detail { margin-top: 3px !important; color: var(--faint); font-size: 11px; line-height: 1.4; }
+.briefing-detail[hidden] { display: none; }
 .briefing.unavailable { border-color: rgba(255, 203, 130, 0.35); }
 .briefing.unavailable .origin { color: var(--amber); }
 

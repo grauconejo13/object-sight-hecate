@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { askButtonLabel, briefingTag, phoneBriefingRequest } from "../src/briefing.js";
+import { askButtonLabel, briefingDetail, briefingTag, phoneBriefingRequest } from "../src/briefing.js";
 
 test("phone request sends only labels, directions, confidence and view-size trend", () => {
   const request = phoneBriefingRequest([
@@ -23,4 +23,11 @@ test("tag shows who wrote the briefing and when Nebius is unavailable", () => {
 test("button label reflects Nebius availability", () => {
   assert.match(askButtonLabel({ available: true }), /Nemotron on Nebius/);
   assert.match(askButtonLabel({ available: false }), /Nebius unavailable/);
+});
+
+test("detail explains a fallback in plain words and stays empty for Nemotron", () => {
+  assert.equal(briefingDetail({ provider: "nemotron", reason: null }), "");
+  assert.equal(briefingDetail({ provider: "local", nebius: "guarded", reason: "Nemotron reply discarded by local guard: named 'train', which is not in the scene facts" }),
+    "Reason: named 'train', which is not in the scene facts");
+  assert.equal(briefingDetail({ provider: "local", nebius: "error", reason: "Nebius rate limit reached" }), "Nebius rate limit reached");
 });
