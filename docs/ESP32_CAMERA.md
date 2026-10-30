@@ -111,7 +111,7 @@ Only the newest frame is held in memory on the laptop; nothing is written to dis
 
 ### Works on Wi-Fi, fails on the phone's hotspot over cellular
 
-Seen on T-Mobile: the camera joined the hotspot and DNS worked, but `Internet: FAILED` (no IPv4 route), while other phones on the same hotspot were fine. T-Mobile's network is IPv6-only, and the phone didn't pass the camera's IPv4 traffic. The firmware turns on IPv6 (`WiFi.enableIPv6()`), and the diagnostics print `IPv6: address …` and `Internet over IPv6: …`. This needs the esp32 board package 3.x.
+Seen on T-Mobile: the camera joined the hotspot and DNS worked, but `Internet: FAILED` (no IPv4 route), while other phones on the same hotspot were fine. T-Mobile's network is IPv6-only, so the likely cause is that the camera's IPv4 traffic isn't passed. The firmware turns on IPv6 (`WiFi.enableIPv6()`) and the diagnostics print `IPv6: address …` and `Internet over IPv6: …`, which show whether the IPv6 path works on your hotspot. **Not yet confirmed to fix the hotspot.** This needs the esp32 board package 3.x.
 
 ### "Request failed: -1 connection refused"
 
