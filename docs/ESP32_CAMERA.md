@@ -109,6 +109,33 @@ Only the newest frame is held in memory on the laptop; nothing is written to dis
 
 ## Troubleshooting
 
+### Works on Wi-Fi, fails on the phone's hotspot over cellular
+
+Seen on T-Mobile: the camera joined the hotspot and DNS worked, but `Internet: FAILED` (no IPv4 route), while other phones on the same hotspot were fine. T-Mobile's network is IPv6-only, so the likely cause is that the camera's IPv4 traffic isn't passed. The firmware turns on IPv6 (`WiFi.enableIPv6()`) and the diagnostics print `IPv6: address …` and `Internet over IPv6: …`, which show whether the IPv6 path works on your hotspot. **Field result (Oct 30, 2026): works on cellular; cause unconfirmed.** Between the failing tests and the working one, IPv6 was enabled in the firmware, the hotspot settings were adjusted, and the hotspot was switched on before the camera powered up, away from home Wi-Fi. After that, the camera streamed live over a T-Mobile 5G hotspot (about 3.6 MB of hotspot data in under 2 minutes, roughly one 640×480 frame per second). IPv6 is the likely fix, but not yet verified.
+
+To verify: run on the hotspot with the Serial Monitor open and check the `Internet:` (IPv4) and `Internet over IPv6:` lines, and look at the client address on the `POST /v1/device/frame` lines in the backend log. An IPv6 address there means the uploads used IPv6. It can take up to a minute to join the hotspot after power-on. This needs the esp32 board package 3.x.
+
+### "Request failed: -1 connection refused"
+
+`-1` is HTTPClient's catch-all for "could not connect". DNS failure, nothing listening on the port, and a failed TLS handshake all report the same code. The firmware therefore checks each stage at boot, and again after repeated failures, and prints which one fails:
+
+| Serial line | Meaning | Fix on the laptop running Hecate |
+| --- | --- | --- |
+| `DNS: FAILED` | The name isn't publicly resolvable. Without Funnel, a `*.ts.net` name resolves only for tailnet devices, and the ESP32 is not one (hotspot clients don't use the phone's Tailscale). | `tailscale funnel status`: the 8443 entry must say **Funnel on**. If not, rerun the funnel command in step 2. |
+| `DNS: ok -> 100.x.x.x` | Resolved to a private Tailscale address; only tailnet devices can reach it. | Same: Funnel must be on. |
+| `TCP: FAILED` | Nothing public is listening on that port. | Funnel off for 8443, the laptop asleep or offline, or Tailscale stopped. |
+| `TLS: FAILED: …` | Reached a server, but the certificate didn't verify. | Note the error text. A date or "expired" message points at the ESP32's clock. |
+| `HTTP: 404` | Funnel is up but `/v1/device` isn't mapped. | Check the `--set-path` mapping (see step 2). |
+| `HTTP: 502` / `504` | Funnel is up, but nothing answers behind it. | Start uvicorn on port 8000. |
+| `HTTP: 503` | Hecate is running without the device token, or is down. | Set `HECATE_DEVICE_TOKEN` and restart uvicorn. |
+| `HTTP: 401` | Everything works except the token. | Make the token in `secrets.h` match `HECATE_DEVICE_TOKEN`. |
+| `HTTP: 200` | Reachable and authorised. | — |
+
+Check from outside your tailnet, just as the ESP32 is: on the phone, turn **Tailscale off** and Wi-Fi off (cell data only), then open `https://<laptop>.<tailnet>.ts.net:8443/v1/device/settings`. Expect `401` (or `{"detail":"Invalid device token"}`). If it doesn't load, the problem is on the laptop side, not the ESP32.
+
+`HECATE_BACKUP_URL` (optional, in `secrets.h`) is tried after 3 failures in a row. It must point at a laptop that runs Hecate with Funnel on 8443, and the phone app only shows frames from the backend in its `VITE_API_URL`.
+
+
 - **`Request failed: -1`** on Serial: TLS or DNS failure. Check `HECATE_BASE_URL` (https, `:8443`, no trailing slash) and that Funnel is on.
 - **`rejected the device token`**: the token differs between `secrets.h` and `HECATE_DEVICE_TOKEN`.
 - **App says waiting but Serial shows frames sent**: the phone is not on Tailscale or `VITE_API_URL` points elsewhere.

@@ -13,6 +13,10 @@
 // Funnel port that only exposes /v1/device (see docs/ESP32_CAMERA.md).
 #define HECATE_BASE_URL "https://your-laptop.your-tailnet.ts.net:8443"
 
+// Optional second backend, tried after 3 failures in a row. Only useful if the
+// phone app also reads from it (its VITE_API_URL points at one backend).
+// #define HECATE_BACKUP_URL "https://other-laptop.your-tailnet.ts.net:8443"
+
 // Must match HECATE_DEVICE_TOKEN on the backend. Generate one with:
 //   python -c "import secrets; print(secrets.token_urlsafe(24))"
 #define HECATE_DEVICE_TOKEN "paste-the-same-long-random-token-here"
