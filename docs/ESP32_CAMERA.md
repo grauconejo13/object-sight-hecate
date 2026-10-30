@@ -109,6 +109,27 @@ Only the newest frame is held in memory on the laptop; nothing is written to dis
 
 ## Troubleshooting
 
+### "Request failed: -1 connection refused"
+
+`-1` is HTTPClient's catch-all for "could not connect". DNS failure, nothing listening on the port, and a failed TLS handshake all report the same code. The firmware therefore checks each stage at boot, and again after repeated failures, and prints which one fails:
+
+| Serial line | Meaning | Fix on the laptop running Hecate |
+| --- | --- | --- |
+| `DNS: FAILED` | The name isn't publicly resolvable. Without Funnel, a `*.ts.net` name resolves only for tailnet devices, and the ESP32 is not one (hotspot clients don't use the phone's Tailscale). | `tailscale funnel status`: the 8443 entry must say **Funnel on**. If not, rerun the funnel command in step 2. |
+| `DNS: ok -> 100.x.x.x` | Resolved to a private Tailscale address; only tailnet devices can reach it. | Same: Funnel must be on. |
+| `TCP: FAILED` | Nothing public is listening on that port. | Funnel off for 8443, the laptop asleep or offline, or Tailscale stopped. |
+| `TLS: FAILED: …` | Reached a server, but the certificate didn't verify. | Note the error text. A date or "expired" message points at the ESP32's clock. |
+| `HTTP: 404` | Funnel is up but `/v1/device` isn't mapped. | Check the `--set-path` mapping (see step 2). |
+| `HTTP: 502` / `504` | Funnel is up, but nothing answers behind it. | Start uvicorn on port 8000. |
+| `HTTP: 503` | Hecate is running without the device token, or is down. | Set `HECATE_DEVICE_TOKEN` and restart uvicorn. |
+| `HTTP: 401` | Everything works except the token. | Make the token in `secrets.h` match `HECATE_DEVICE_TOKEN`. |
+| `HTTP: 200` | Reachable and authorised. | — |
+
+Check from outside your tailnet, just as the ESP32 is: on the phone, turn **Tailscale off** and Wi-Fi off (cell data only), then open `https://<laptop>.<tailnet>.ts.net:8443/v1/device/settings`. Expect `401` (or `{"detail":"Invalid device token"}`). If it doesn't load, the problem is on the laptop side, not the ESP32.
+
+`HECATE_BACKUP_URL` (optional, in `secrets.h`) is tried after 3 failures in a row. It must point at a laptop that runs Hecate with Funnel on 8443, and the phone app only shows frames from the backend in its `VITE_API_URL`.
+
+
 - **`Request failed: -1`** on Serial: TLS or DNS failure. Check `HECATE_BASE_URL` (https, `:8443`, no trailing slash) and that Funnel is on.
 - **`rejected the device token`**: the token differs between `secrets.h` and `HECATE_DEVICE_TOKEN`.
 - **App says waiting but Serial shows frames sent**: the phone is not on Tailscale or `VITE_API_URL` points elsewhere.

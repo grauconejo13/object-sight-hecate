@@ -37,8 +37,17 @@
 #define HREF_GPIO_NUM 7
 #define PCLK_GPIO_NUM 13
 
-static const char *FRAME_URL = HECATE_BASE_URL "/v1/device/frame";
-static const char *SETTINGS_URL = HECATE_BASE_URL "/v1/device/settings";
+// Backends to try, in order. HECATE_BACKUP_URL is optional (define it in secrets.h).
+// A backup only helps if the phone app reads from that same backend.
+static const char *BASE_URLS[] = {
+  HECATE_BASE_URL,
+#ifdef HECATE_BACKUP_URL
+  HECATE_BACKUP_URL,
+#endif
+};
+static const size_t BASE_URL_COUNT = sizeof(BASE_URLS) / sizeof(BASE_URLS[0]);
+static const uint8_t FAILURES_BEFORE_SWITCH = 3;
+static const uint32_t DIAGNOSE_EVERY_MS = 30000;
 static const char *AUTH_HEADER = "Bearer " HECATE_DEVICE_TOKEN;
 static const uint32_t PAUSED_POLL_MS = 3000;
 static const uint32_t MAX_BACKOFF_MS = 8000;
@@ -58,6 +67,9 @@ HTTPClient http;
 Settings current;
 uint32_t backoffMs = 0;
 uint32_t framesSent = 0;
+size_t activeUrl = 0;
+uint8_t consecutiveFailures = 0;
+uint32_t lastDiagnosisAt = 0;
 
 const char *HEADER_KEYS[] = {
   "X-Hecate-Frame-Size", "X-Hecate-Quality", "X-Hecate-Interval-Ms",
@@ -182,8 +194,88 @@ void connectWifi() {
   Serial.printf("\nConnected to %s, IP %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
 }
 
+// Split "https://host:port" into host and port (default 443).
+bool parseBase(const char *base, String &host, uint16_t &port) {
+  String url(base);
+  if (!url.startsWith("https://")) return false;
+  url = url.substring(8);
+  int slash = url.indexOf('/');
+  if (slash >= 0) url = url.substring(0, slash);
+  int colon = url.indexOf(':');
+  host = colon >= 0 ? url.substring(0, colon) : url;
+  port = colon >= 0 ? (uint16_t)url.substring(colon + 1).toInt() : 443;
+  return host.length() > 0 && port > 0;
+}
+
+// HTTPClient reports DNS, TCP and TLS failures all as "-1 connection refused".
+// Test each stage separately so the Serial Monitor says which one fails.
+void diagnose(const char *base) {
+  lastDiagnosisAt = millis();
+  String host;
+  uint16_t port;
+  Serial.printf("--- Checking %s\n", base);
+  if (!parseBase(base, host, port)) {
+    Serial.println("  URL: INVALID (expected https://host:port, no trailing path)");
+    return;
+  }
+  Serial.printf("  Wi-Fi: %s, IP %s, DNS %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(),
+                WiFi.dnsIP().toString().c_str());
+
+  IPAddress ip;
+  if (!WiFi.hostByName(host.c_str(), ip)) {
+    Serial.printf("  DNS:  FAILED for %s. Not publicly resolvable: Funnel is off for this host, "
+                  "the name is wrong, or the hotspot has no internet.\n", host.c_str());
+    return;
+  }
+  Serial.printf("  DNS:  ok -> %s\n", ip.toString().c_str());
+  if (ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127) {
+    Serial.println("        That is a Tailscale (100.x) address, which only tailnet devices can reach.");
+  }
+
+  WiFiClient tcp;
+  if (!tcp.connect(ip, port, 8000)) {
+    Serial.printf("  TCP:  FAILED to %s:%u. Nothing public is listening on this port: "
+                  "Funnel not enabled on %u, or it stopped.\n", ip.toString().c_str(), port, port);
+    return;
+  }
+  tcp.stop();
+  Serial.printf("  TCP:  ok on port %u\n", port);
+
+  WiFiClientSecure probe;
+  probe.setCACert(HECATE_ROOT_CA);
+  if (!probe.connect(host.c_str(), port)) {
+    char err[120] = "";
+    probe.lastError(err, sizeof(err));
+    Serial.printf("  TLS:  FAILED: %s\n", err[0] ? err : "handshake failed");
+    return;
+  }
+  probe.stop();
+  Serial.println("  TLS:  ok, certificate verified");
+
+  HTTPClient check;
+  String url = String(base) + "/v1/device/settings";
+  if (!check.begin(probe, url)) {  // fresh client: the upload connection is left untouched
+    Serial.println("  HTTP: could not start request");
+    return;
+  }
+  check.addHeader("Authorization", AUTH_HEADER);
+  int code = check.GET();
+  check.end();
+  switch (code) {
+    case 200: Serial.println("  HTTP: 200, backend reachable and token accepted"); break;
+    case 401: Serial.println("  HTTP: 401, reached Hecate but the token differs from HECATE_DEVICE_TOKEN"); break;
+    case 404: Serial.println("  HTTP: 404, reached the server but not /v1/device; check the funnel --set-path mapping"); break;
+    case 503:
+      Serial.println("  HTTP: 503, Hecate is running without HECATE_DEVICE_TOKEN set, or the backend is down"); break;
+    case 502: case 504:
+      Serial.printf("  HTTP: %d, Funnel is up but nothing answers behind it: start uvicorn on port 8000\n", code); break;
+    default: Serial.printf("  HTTP: %d %s\n", code, code < 0 ? check.errorToString(code).c_str() : ""); break;
+  }
+}
+
 // Returns true when the backend answered 2xx.
-bool request(const char *url, camera_fb_t *frame) {
+bool request(const char *path, camera_fb_t *frame) {
+  String url = String(BASE_URLS[activeUrl]) + path;
   if (!http.begin(tls, url)) return false;
   http.collectHeaders(HEADER_KEYS, sizeof(HEADER_KEYS) / sizeof(HEADER_KEYS[0]));
   http.addHeader("Authorization", AUTH_HEADER);
@@ -201,7 +293,8 @@ bool request(const char *url, camera_fb_t *frame) {
   } else if (code == 401) {
     Serial.println("Backend rejected the device token: check HECATE_DEVICE_TOKEN on both sides");
   } else {
-    Serial.printf("Request failed: %d %s\n", code, code < 0 ? http.errorToString(code).c_str() : "");
+    Serial.printf("Request failed (%s): %d %s\n", BASE_URLS[activeUrl], code,
+                  code < 0 ? http.errorToString(code).c_str() : "");
   }
   http.end();  // Keeps the TLS connection open for reuse when the server allows it.
   return ok;
@@ -227,6 +320,21 @@ void setup() {
   http.setReuse(true);
   http.setTimeout(8000);
   http.setConnectTimeout(8000);
+
+  for (size_t i = 0; i < BASE_URL_COUNT; i++) diagnose(BASE_URLS[i]);
+}
+
+// After repeated failures, explain why (at most every 30 s) and try the next URL.
+void handleFailure() {
+  if (++consecutiveFailures < FAILURES_BEFORE_SWITCH) return;
+  consecutiveFailures = 0;
+  if (millis() - lastDiagnosisAt > DIAGNOSE_EVERY_MS) diagnose(BASE_URLS[activeUrl]);
+  if (BASE_URL_COUNT > 1) {
+    activeUrl = (activeUrl + 1) % BASE_URL_COUNT;
+    http.end();
+    tls.stop();
+    Serial.printf("Switching to %s\n", BASE_URLS[activeUrl]);
+  }
 }
 
 void loop() {
@@ -235,7 +343,7 @@ void loop() {
 
   bool ok;
   if (current.paused) {
-    ok = request(SETTINGS_URL, nullptr);
+    ok = request("/v1/device/settings", nullptr);
   } else {
     camera_fb_t *frame = esp_camera_fb_get();
     if (!frame) {
@@ -243,13 +351,15 @@ void loop() {
       delay(200);
       return;
     }
-    ok = request(FRAME_URL, frame);
+    ok = request("/v1/device/frame", frame);
     esp_camera_fb_return(frame);
     if (ok && ++framesSent % 25 == 0) {
       Serial.printf("%lu frames sent, last cycle %lu ms\n", (unsigned long)framesSent, (unsigned long)(millis() - started));
     }
   }
 
+  if (ok) consecutiveFailures = 0;
+  else handleFailure();
   backoffMs = ok ? 0 : min<uint32_t>(MAX_BACKOFF_MS, backoffMs ? backoffMs * 2 : 500);
   uint32_t target = current.paused ? PAUSED_POLL_MS : current.intervalMs;
   uint32_t elapsed = millis() - started;
